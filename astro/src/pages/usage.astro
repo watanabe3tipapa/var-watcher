@@ -1,0 +1,29 @@
+---
+import Layout from '../layouts/Layout.astro'
+import DemoLink from '../components/DemoLink.astro'
+---
+
+<Layout title="使い方">
+  <h1 class="mb-4 text-3xl font-bold">使い方</h1>
+
+  <h2 class="mb-2 mt-8 text-xl font-semibold">TUI</h2>
+  <p class="mb-2 text-slate-300">端末で <code>sudo varwatch --tui</code> を実行します。</p>
+  <table class="w-full border-collapse text-sm">
+    <thead><tr class="border-b border-slate-700 text-left"><th class="py-2">キー</th><th class="py-2">動作</th></tr></thead>
+    <tbody class="text-slate-300">
+      <tr class="border-b border-slate-800"><td class="py-2"><code>Space</code></td><td>選択中の watcher を ON/OFF</td></tr>
+      <tr class="border-b border-slate-800"><td class="py-2"><code>/</code></td><td>ログのキーワードフィルタ</td></tr>
+      <tr class="border-b border-slate-800"><td class="py-2"><code>f</code></td><td>フィルタ解除</td></tr>
+      <tr class="border-b border-slate-800"><td class="py-2"><code>s</code></td><td>設定を保存</td></tr>
+      <tr class="border-b border-slate-800"><td class="py-2"><code>n</code></td><td>通知テスト</td></tr>
+      <tr class="border-b border-slate-800"><td class="py-2"><code>q</code> / <code>Ctrl-C</code></td><td>終了</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="mb-2 mt-8 text-xl font-semibold">Web UI</h2>
+  <p class="mb-2 text-slate-300"><code>varwatch --web</code> で <code>http://localhost:8080</code> を開きます。各 watcher の Start / Stop ボタンと、WebSocket によるリアルタイムログを確認できます。</p>
+
+  <h2 class="mb-2 mt-8 text-xl font-semibold">Live Demo</h2>
+  <p class="mb-2 text-slate-300">Netlify 上で公開しているモックデモを試せます。</p>
+  <DemoLink />
+</Layout>

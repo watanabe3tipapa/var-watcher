@@ -1,0 +1,43 @@
+---
+import '../styles/global.css'
+
+interface Props {
+  title: string
+  description?: string
+}
+
+const { title, description = 'macOS /var 監視ツール var-watcher の教材・ランディングページ' } = Astro.props
+const DEMO_URL = 'https://varwatch-demo.netlify.app'
+---
+
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title} | var-watcher</title>
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/var-watcher/favicon.svg" />
+  </head>
+  <body class="min-h-screen bg-slate-950 text-slate-100">
+    <nav class="border-b border-slate-800 bg-slate-900">
+      <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        <a href="/var-watcher/" class="text-lg font-bold text-white">var-watcher</a>
+        <div class="flex gap-4 text-sm">
+          <a href="/var-watcher/" class="hover:text-accent">ホーム</a>
+          <a href="/var-watcher/install/" class="hover:text-accent">インストール</a>
+          <a href="/var-watcher/usage/" class="hover:text-accent">使い方</a>
+          <a href="/var-watcher/faq/" class="hover:text-accent">FAQ</a>
+          <a href="/var-watcher/changelog/" class="hover:text-accent">更新履歴</a>
+          <a href={DEMO_URL} target="_blank" rel="noopener noreferrer" class="rounded bg-accent px-2 py-0.5 text-black hover:opacity-90">Live Demo</a>
+        </div>
+      </div>
+    </nav>
+    <main class="mx-auto max-w-5xl px-4 py-8">
+      <slot />
+    </main>
+    <footer class="border-t border-slate-800 bg-slate-900 py-6 text-center text-sm text-slate-400">
+      <p>© 2026 var-watcher · <a href="https://github.com/watanabe3tipapa/var-watcher" class="text-accent underline">GitHub</a> · <a href={DEMO_URL} class="text-accent underline" target="_blank" rel="noopener noreferrer">Live Demo</a></p>
+    </footer>
+  </body>
+</html>

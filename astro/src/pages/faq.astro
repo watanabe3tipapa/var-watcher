@@ -1,0 +1,22 @@
+---
+import Layout from '../layouts/Layout.astro'
+---
+
+<Layout title="FAQ">
+  <h1 class="mb-4 text-3xl font-bold">FAQ</h1>
+
+  <h2 class="mb-1 mt-6 text-lg font-semibold">/var の監視に sudo は必要ですか?</h2>
+  <p class="text-slate-300">はい。/var の大半は root 権限が必要です。<code>sudo varwatch</code> で実行してください。また一部のファイルは macOS の「フルディスクアクセス」許可がないと読めない場合があります。</p>
+
+  <h2 class="mb-1 mt-6 text-lg font-semibold">fswatch などが未インストールの環境では?</h2>
+  <p class="text-slate-300">起動時に不足コマンドを検知し、<code>brew install …</code> のヒントを表示します。インストールしなくても TUI / Web UI 自体は起動できます。</p>
+
+  <h2 class="mb-1 mt-6 text-lg font-semibold">ログはどこに保存されますか?</h2>
+  <p class="text-slate-300">ログはメモリ上に保持され、<code>max_log_lines</code>(既定 2000 行)で自動的に切り捨てられます。ファイルへの永続化は現在未対応です。</p>
+
+  <h2 class="mb-1 mt-6 text-lg font-semibold">log stream の出力が多すぎる</h2>
+  <p class="text-slate-300">システムログは高頻度です。既定では OFF にしてあり、必要なときだけ ON にするのがおすすめです。</p>
+
+  <h2 class="mb-1 mt-6 text-lg font-semibold">プラグインはどうやって追加しますか?</h2>
+  <p class="text-slate-300"><code>plugins/</code> ディレクトリに <code>.sh</code> スクリプトを置くだけです。起動時に自動検出され、TUI / Web UI の一覧に追加されます。</p>
+</Layout>

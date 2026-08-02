@@ -1,0 +1,30 @@
+---
+import Layout from '../layouts/Layout.astro'
+---
+
+<Layout title="インストール">
+  <h1 class="mb-4 text-3xl font-bold">インストール手順</h1>
+
+  <h2 class="mb-2 mt-8 text-xl font-semibold">1. 依存ツール</h2>
+  <p class="mb-2 text-slate-300">監視エンジン(fswatch / watchman / entr)を Homebrew で導入します。</p>
+  <pre class="overflow-x-auto rounded bg-slate-900 p-4 text-sm"><code>$ brew install fswatch watchman entr</code></pre>
+
+  <h2 class="mb-2 mt-8 text-xl font-semibold">2. バイナリのビルド</h2>
+  <pre class="overflow-x-auto rounded bg-slate-900 p-4 text-sm"><code>$ git clone https://github.com/watanabe3tipapa/var-watcher.git
+$ cd var-watcher
+$ make build        # varwatch バイナリを生成
+$ sudo mv varwatch /usr/local/bin/</code></pre>
+
+  <h2 class="mb-2 mt-8 text-xl font-semibold">3. 起動</h2>
+  <pre class="overflow-x-auto rounded bg-slate-900 p-4 text-sm"><code>$ sudo varwatch --tui
+$ varwatch --web            # ブラウザから http://localhost:8080</code></pre>
+
+  <h2 class="mb-2 mt-8 text-xl font-semibold">4. 設定ファイル</h2>
+  <p class="mb-2 text-slate-300">初回起動時に <code>~/.varwatch/config.json</code> が生成されます。TUI で <code>s</code> キーを押すと保存できます。</p>
+  <pre class="overflow-x-auto rounded bg-slate-900 p-4 text-sm" is:raw><code>{
+  "target": "/var",
+  "enabled": { "fswatch": true, "logstream": false },
+  "notify": false,
+  "max_log_lines": 2000
+}</code></pre>
+</Layout>

@@ -1,0 +1,53 @@
+---
+import Layout from '../layouts/Layout.astro'
+import DemoLink from '../components/DemoLink.astro'
+---
+
+<Layout title="ホーム">
+  <header class="py-10 text-center">
+    <h1 class="text-4xl font-bold">macOS <code class="text-primary">/var</code> 監視ツール</h1>
+    <p class="mt-4 text-lg text-slate-300">fswatch / watchman / entr / log stream をひとつの TUI と Web UI で一元管理</p>
+    <div class="mt-6 flex justify-center gap-3">
+      <DemoLink />
+      <a href="/var-watcher/install/" class="inline-block rounded border border-slate-600 px-5 py-2 font-semibold hover:bg-slate-800">インストール</a>
+    </div>
+  </header>
+
+  <section id="features" class="grid gap-6 md:grid-cols-2">
+    <div class="rounded-lg border border-slate-800 p-5">
+      <h2 class="mb-2 text-xl font-semibold">4 つの監視エンジン</h2>
+      <ul class="list-disc space-y-1 pl-5 text-sm text-slate-300">
+        <li><b>fswatch</b> — ファイルシステム変更のリアルタイム検知</li>
+        <li><b>watchman</b> — Facebook 製の監視デーモン</li>
+        <li><b>entr</b> — ファイルリスト駆動の変更トリガ</li>
+        <li><b>log stream</b> — macOS Unified Logging の監視</li>
+      </ul>
+    </div>
+    <div class="rounded-lg border border-slate-800 p-5">
+      <h2 class="mb-2 text-xl font-semibold">TUI と Web UI を切り替え</h2>
+      <p class="text-sm text-slate-300"><code>--tui</code> と <code>--web</code> フラグで端末 UI とブラウザ UI を選択。同時起動も可能で、状態とログは常に同期します。</p>
+    </div>
+    <div class="rounded-lg border border-slate-800 p-5">
+      <h2 class="mb-2 text-xl font-semibold">リアルタイムログ</h2>
+      <p class="text-sm text-slate-300">TUI ではスクロール可能なログビュー + キーワードフィルタ、Web UI では WebSocket でログを即時配信。</p>
+    </div>
+    <div class="rounded-lg border border-slate-800 p-5">
+      <h2 class="mb-2 text-xl font-semibold">設定保存 & プラグイン</h2>
+      <p class="text-sm text-slate-300"><code>~/.varwatch/config.json</code> で有効状態を管理。<code>plugins/*.sh</code> を置くだけで独自の監視スクリプトを追加できます。</p>
+    </div>
+  </section>
+
+  <section id="install" class="mt-10">
+    <h2 class="mb-3 text-2xl font-semibold">インストール</h2>
+    <pre class="overflow-x-auto rounded bg-slate-900 p-4 text-sm"><code>$ brew install fswatch watchman entr
+$ go install github.com/watanabe3tipapa/var-watcher/cmd/varwatch@latest
+$ sudo varwatch --tui</code></pre>
+  </section>
+
+  <section id="usage" class="mt-10">
+    <h2 class="mb-3 text-2xl font-semibold">クイックスタート</h2>
+    <pre class="overflow-x-auto rounded bg-slate-900 p-4 text-sm"><code>$ varwatch --tui        # 端末 UI で監視
+$ varwatch --web         # ブラウザ UI を :8080 で起動
+$ varwatch --tui --web   # 両方同時</code></pre>
+  </section>
+</Layout>

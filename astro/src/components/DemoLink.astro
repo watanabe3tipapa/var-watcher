@@ -1,0 +1,17 @@
+---
+interface Props {
+  label?: string
+  href?: string
+}
+
+const { label = '▶ Live Demo を試す', href = 'https://varwatch-demo.netlify.app' } = Astro.props
+---
+
+<a
+  href={href}
+  target="_blank"
+  rel="noopener noreferrer"
+  class="inline-block rounded bg-accent px-5 py-2 font-semibold text-black shadow hover:opacity-90"
+>
+  {label}
+</a>

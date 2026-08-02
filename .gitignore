@@ -1,0 +1,12 @@
+.DS_Store
+/varwatch
+/PLAN.md
+*.log
+frontend/node_modules
+frontend/dist
+astro/node_modules
+astro/dist
+astro/.astro
+demo/node_modules
+demo/dist
+demo/.netlify
