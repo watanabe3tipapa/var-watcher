@@ -1,100 +1,95 @@
+<!-- badges -->
+[![License](https://img.shields.io/github/license/watanabe3tipapa/var-watcher.svg)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![Maintenance](https://img.shields.io/badge/Maintenance-Active-brightgreen.svg)](https://github.com/watanabe3tipapa/var-watcher)
+[![Last commit](https://img.shields.io/github/last-commit/watanabe3tipapa/var-watcher/main.svg)](https://github.com/watanabe3tipapa/var-watcher/commits/main)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Netlify-00C7B7)](https://var-watcher.netlify.app)
+
+[English](README.md) | [日本語](README_ja.md)
+
 # var-watcher
 
-macOS の `/var` ディレクトリを監視するツール。`fswatch` / `watchman` / `entr` / `log stream` の
-4 つの監視エンジンを 1 つの **TUI** と **Web UI** から一元管理できます。
+A tool to monitor `/var` on macOS in real time, unifying four monitoring engines
+(`fswatch` / `watchman` / `entr` / `log stream`) under a single **TUI** and **Web UI**.
 
-- TUI: `varwatch --tui`(tview)
-- Web UI: `varwatch --web`(Vue3 + WebSocket、単一バイナリに同梱)
-- 同時起動: `varwatch --tui --web`(状態とログは共有)
+- **TUI**: `varwatch --tui` (tview)
+- **Web UI**: `varwatch --web` (Vue 3 + WebSocket, embedded in a single binary)
+- **Both**: `varwatch --tui --web` (shared state and logs)
 
-## なぜ作ったのか
+## Motivation
 
-このツールは **AI Agent の振る舞いを確認・追跡するため**に作られました。
+I built this tool to **observe and track the behavior of AI agents**.
+Coding agents run commands, create/edit/delete files, and install packages in
+places you cannot easily see. Since macOS `/var` is frequently rewritten by logs,
+caches, and temporary files, changes there are a reliable "footprint" of agent
+activity. var-watcher visualizes that footprint in real time so you can confirm
+what is happening and record it for later analysis.
 
-### 背景
+> Note: this tool detects *what changed*, not the agent's reasoning. It tracks
+> the filesystem footprint, not the decision-making process.
 
-最近のコーディングエージェント(例: Claude Code、opencode などの AI Agent)は、
-あなたの代わりにターミナルでコマンドを実行し、ファイルを作成・編集・削除し、
-パッケージをインストールし、テストを走らせます。それらの作業の多くは
-**目に見えない場所**で行われます。特に macOS の `/var` 配下は OS やアプリの
-ログ・キャッシュ・一時ファイルが頻繁に書き換わる領域で、Agent が何かを
-しているときも必ずと言っていいほど変更が発生します。
+## Features
 
-### このツールでできること
+- **Unified monitoring** — one ON/OFF switch per engine (fswatch / watchman / entr / log stream)
+- **Real-time logs** — streaming to TUI and Web UI (WebSocket)
+- **Log filtering** — keyword search in the TUI (`/` to filter, `f` to clear)
+- **Persistent config** — `~/.varwatch/config.json`
+- **macOS notifications** — `osascript` integration
+- **Plugins** — drop `plugins/*.sh` and it runs automatically
+- **Dependency detection** — shows `brew install` hints for missing commands
+- **Single binary** — Web UI is embedded via `embed.FS`
 
-- **「いま何が起きているか」をリアルタイムに可視化**
-  4 つの監視エンジン(fswatch / watchman / entr / log stream)で
-  `/var` の変更を検知し、TUI や Web UI にログとして即時表示します。
-- **どのエンジンが何を見ているかを一元管理**
-  各エンジンを個別に ON/OFF でき、設定は `~/.varwatch/config.json` に保存されます。
-- **振る舞いを「証跡」として残す**
-  `s` キーで設定保存、プラグインで独自の記録スクリプトを追加し、
-  Agent の活動を後から分析できるようにします。
+## Screenshot
 
-### 使いどころの例
+![Screenshot](assets/IMGSS.jpg)
 
-- AI Agent に長時間のタスクを任せている間、**画面を見て作業が進んでいるかを確認**
-- 「Agent が勝手に予期しないファイルを触っていないか」を監視
-- どの時間帯に・どのディレクトリで変更が起きたかの**傾向を記録・分析**
-- 学習・教材用途として、Agent の動作をデモで見せる
-
-> **補足**: このツールは「何が変わったか」を検知・記録する監視ツールです。
-> Agent の判断内容までは見えません。あくまでファイルシステム上の「足あと」を
-> 通して振る舞いを確認・追跡するための道具です。
-
-## クイックスタート
+## Installation
 
 ```bash
+# Install the monitoring engines
 brew install fswatch watchman entr
+
+# Clone and build
+git clone https://github.com/watanabe3tipapa/var-watcher.git
+cd var-watcher
 make build
-sudo ./varwatch --tui        # 端末 UI
-./varwatch --web             # http://localhost:8080
+
+# (optional) Put it on your PATH
+sudo mv varwatch /usr/local/bin/
 ```
 
-`/var` の大半は root 権限が必要なため、TUI は `sudo` での実行を推奨します。
-
-## キーバインド(TUI)
-
-| キー | 動作 |
-|------|------|
-| `Space` | 選択中 watcher の ON/OFF |
-| `/` | ログのキーワードフィルタ |
-| `f` | フィルタ解除 |
-| `s` | 設定保存(`~/.varwatch/config.json`) |
-| `n` | macOS 通知テスト |
-| `q` / `Ctrl-C` | 終了 |
-
-## Web API
-
-```
-GET  /api/watchers                  # watcher 一覧
-POST /api/watchers/{name}/start     # 起動
-POST /api/watchers/{name}/stop      # 停止
-GET  /ws/logs                       # WebSocket でログ配信
-```
-
-## プラグイン
-
-`plugins/*.sh` を置くと起動時に自動検出され、TUI / Web UI の一覧に追加されます。
-
-## 公開するもの
-
-- 教材・LP: GitHub Pages(Astro) — `astro/`、Actions で自動デプロイ
-- Live Demo: Netlify(モックデータ) — `demo/`、`netlify/functions/log.js` がモックログを配信
-
-## 開発
+## Usage
 
 ```bash
-make dev       # go run ./cmd/varwatch --tui
-make build     # リリースバイナリ
-make test      # go test ./...
-make vet       # go vet ./...
-make frontend  # Vue ビルド + embed 更新
-make astro     # 教材サイトビルド
-make demo      # デモサイトビルド
+varwatch --tui                  # Terminal UI
+varwatch --web                  # Web UI at http://localhost:8080
+varwatch --tui --web            # Both simultaneously
+varwatch --config /path.json    # Custom config file
 ```
 
-詳細は [DEV-MEMO.md](./DEV-MEMO.md) を参照してください。
+> `/var` mostly requires root privileges, so run the TUI with `sudo`.
+> `--web` alone does not require root.
 
+For detailed usage (TUI keybindings, REST API, config reference, plugins),
+see the [Documentation](https://watanabe3tipapa.github.io/var-watcher/) or
+[DEV-MEMO.md](DEV-MEMO.md).
 
-MIT
+Try the [Live Demo](https://var-watcher.netlify.app).
+
+## Contributing
+
+Contributions are welcome!
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a [Pull Request](https://github.com/watanabe3tipapa/var-watcher/pulls)
+
+## License
+
+MIT License — see the [LICENSE](LICENSE) file for details.
+
+## Contact
+
+GitHub: [https://github.com/watanabe3tipapa/var-watcher](https://github.com/watanabe3tipapa/var-watcher)

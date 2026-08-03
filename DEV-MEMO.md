@@ -146,7 +146,7 @@ GET  /                                → embed.FS の Vue dist/
 - Actions で `npm ci && npm run build` → `dist/` → `gh-pages` へ `peaceiris/actions-gh-pages` で deploy。
 
 ## demo/ (Netlify)
-- Vue3 + Vite。`netlify/functions/log.js` がモックログ配信(3 秒ごと fetch)。
+- Vue3 + Vite。`netlify/functions/log.mjs` がモックログ配信(2 秒ごと fetch)。
 - `netlify.toml`: `command = "npm run build"`, `publish = "dist"`, `functions = "netlify/functions"`。
 - フッターに GitHub Pages 教材へのリンク。
 
