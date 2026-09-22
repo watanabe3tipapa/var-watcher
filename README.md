@@ -37,6 +37,7 @@ macOS の `/var` はログ・キャッシュ・一時ファイルが頻繁に書
 - **ルールベース アラート** — 「パターン + 時間窓内 N 件」で発火し、macOS 通知(サウンド可)+ Web バッジ
 - **ログエクスポート** — 検索条件に一致するログを CSV / JSON でダウンロード
 - **統計ダッシュボード** — 時間帯別イベント数・エンジン別比率・TOP 変更パスを Web で可視化
+- **ディレクトリツリー可視化** — 24 時間の変更をパス階層で集計し、色深度ヒートマップで表示。クリックで展開/関連行を検索
 - **設定保存** — `~/.varwatch/config.json`
 - **macOS 通知** — `osascript` 連携
 - **プラグイン** — `plugins/*.sh` を置くだけで自動実行
@@ -90,6 +91,9 @@ curl -o logs.json 'http://localhost:8080/api/export?format=json&since=2026-09-23
 
 # 統計ダッシュボード用の集計(時間帯別 / 曜日別 / エンジン別 / TOPパス)
 curl 'http://localhost:8080/api/stats?hours=24'
+
+# ディレクトリツリー(ヒートマップ)の階層集計
+curl 'http://localhost:8080/api/tree?hours=24&limit=20000'
 ```
 
 ## スクリーンショット

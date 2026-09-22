@@ -71,6 +71,74 @@ async function refreshStats() {
   }
 }
 
+interface TreeNode {
+  name: string
+  path: string
+  count: number
+  children?: TreeNode[]
+}
+
+const treeEnabled = ref(false)
+const tree = ref<TreeNode | null>(null)
+const collapsed = ref<Set<string>>(new Set())
+
+async function refreshTree() {
+  try {
+    const res = await fetch('/api/tree?hours=24')
+    const body = await res.json()
+    treeEnabled.value = body.enabled ?? false
+    tree.value = body.tree ?? null
+    collapsed.value = new Set()
+  } catch {
+    treeEnabled.value = false
+  }
+}
+
+function toggleNode(n: TreeNode) {
+  const next = new Set(collapsed.value)
+  if (next.has(n.path)) next.delete(n.path)
+  else next.add(n.path)
+  collapsed.value = next
+}
+
+function heatColor(count: number, max: number): string {
+  if (max <= 0 || count <= 0) return 'rgba(56,189,248,0.08)'
+  const r = count / max
+  const hue = 200 - r * 100 // 青 → 橙 → 赤
+  return `hsl(${hue}, 80%, ${50 - r * 20}%)`
+}
+
+function treeMax(n: TreeNode | null): number {
+  if (!n) return 0
+  let m = n.count
+  for (const c of n.children ?? []) m = Math.max(m, treeMax(c))
+  return m
+}
+
+interface TreeRow {
+  path: string
+  label: string
+  count: number
+  depth: number
+  hasChildren: boolean
+}
+
+function flattenTree(n: TreeNode, depth: number, coll: Set<string>): TreeRow[] {
+  const rows: TreeRow[] = []
+  const visit = (node: TreeNode, d: number) => {
+    rows.push({ path: node.path, label: node.name, count: node.count, depth: d, hasChildren: (node.children?.length ?? 0) > 0 })
+    if (coll.has(node.path)) return
+    for (const c of node.children ?? []) visit(c, d + 1)
+  }
+  for (const c of n.children ?? []) visit(c, depth)
+  return rows
+}
+
+function applyTreeFilter(path: string) {
+  keyword.value = path
+  doSearch()
+}
+
 function maxCount(buckets: StatsBucket[]): number {
   return buckets.reduce((m, b) => (b.count > m ? b.count : m), 0)
 }
@@ -179,10 +247,12 @@ onMounted(() => {
   refresh()
   refreshAlerts()
   refreshStats()
+  refreshTree()
   connect()
   setInterval(refresh, 5000)
   setInterval(refreshAlerts, 5000)
   setInterval(refreshStats, 30000)
+  setInterval(refreshTree, 30000)
 })
 
 onBeforeUnmount(() => ws?.close())
@@ -278,6 +348,32 @@ onBeforeUnmount(() => ws?.close())
       </template>
     </section>
 
+    <section class="dashboard">
+      <h2>Directory Tree (heatmap 24h)</h2>
+      <p v-if="!treeEnabled" class="err">永続化が無効 (store 未設定)</p>
+      <template v-else-if="tree">
+        <p class="hint">色が濃いほど変更が多い(クリックで展開/折りたたみ、パスで検索)</p>
+        <div class="tree">
+          <div class="tree-row" :style="{ background: heatColor(tree.count, treeMax(tree)) }">
+            <button class="tree-folder" @click="toggleNode(tree)">{{ collapsed.has(tree.path) ? '▸' : '▾' }}</button>
+            <span class="tree-name" @click="applyTreeFilter(tree.path)">/</span>
+            <span class="tree-count">{{ tree.count }}</span>
+          </div>
+          <div
+            v-for="row in flattenTree(tree, 1, collapsed)"
+            :key="row.path"
+            class="tree-row"
+            :style="{ background: heatColor(row.count, treeMax(tree)), paddingLeft: (row.depth * 14 + 8) + 'px' }"
+          >
+            <span class="tree-mark" v-if="row.hasChildren">{{ row.depth > 0 ? '└' : '├' }}</span>
+            <button class="tree-folder" v-if="row.hasChildren" @click="toggleNode(row)">{{ collapsed.has(row.path) ? '▸' : '▾' }}</button>
+            <span class="tree-name" :style="{ color: heatColor(row.count, treeMax(tree)) }" @click="applyTreeFilter(row.path)">{{ row.label }}</span>
+            <span class="tree-count">{{ row.count }}</span>
+          </div>
+        </div>
+      </template>
+    </section>
+
     <div class="col">
       <section class="search">
         <h2>Log Search (persisted)</h2>
@@ -364,4 +460,9 @@ button:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
 .bar-fill.src { background: #a78bfa; }
 .bar-count { min-width: 2.5rem; color: #e2e8f0; }
 .hint { color: #94a3b8; font-size: 0.75rem; }
+.tree { display: flex; flex-direction: column; gap: 2px; font-size: 0.72rem; }
+.tree-row { display: flex; align-items: center; gap: 0.4rem; border-radius: 4px; padding: 2px 6px; cursor: pointer; }
+.tree-folder { background: none; border: none; color: #94a3b8; padding: 0 2px; cursor: pointer; font-size: 0.7rem; }
+.tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e2e8f0; }
+.tree-count { color: #94a3b8; min-width: 3rem; text-align: right; }
 </style>

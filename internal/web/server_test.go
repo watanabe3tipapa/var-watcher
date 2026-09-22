@@ -250,6 +250,54 @@ func TestStatsAPIDisabled(t *testing.T) {
 	}
 }
 
+func TestTreeAPI(t *testing.T) {
+	e := engine.New(config.Default(), engine.NewBus())
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer st.Close()
+
+	now := time.Now()
+	for _, m := range []string{
+		"/var/log/system.log Created IsFile",
+		"/var/log/system.log Modified IsFile",
+		"/var/cache/x Created",
+	} {
+		if err := st.Append(store.Line{TS: now, Source: "fswatch", Level: "stdout", Message: m}); err != nil {
+			t.Fatalf("append: %v", err)
+		}
+	}
+
+	srv := NewServer(e)
+	srv.SetStore(st)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/api/tree?hours=24")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	var payload struct {
+		Enabled bool           `json:"enabled"`
+		Tree    store.TreeNode `json:"tree"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !payload.Enabled {
+		t.Fatal("expected enabled=true with store set")
+	}
+	if payload.Tree.Count != 3 {
+		t.Fatalf("expected 3 total, got %d", payload.Tree.Count)
+	}
+	if payload.Tree.Name != "/" {
+		t.Fatalf("expected root name /, got %q", payload.Tree.Name)
+	}
+}
+
 func TestLogsAPIDisabled(t *testing.T) {
 	e := engine.New(config.Default(), engine.NewBus())
 	srv := NewServer(e) // store 未設定

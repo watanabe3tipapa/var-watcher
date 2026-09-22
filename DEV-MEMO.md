@@ -179,6 +179,13 @@ GET  /                                → embed.FS の Vue dist/
   - `top_paths`: message 先頭トークンをパスとみなす TOP10(単純抽出のため log stream 等はノイズが出る)。
 - Web UI の Dashboard(24h)パネルに純 CSS/SVG バーチャート(時間帯別・エンジン別)と TOP 変更パス一覧を表示。30 秒間隔で再取得。
 
+## ディレクトリツリー可視化
+- `GET /api/tree?hours=24&limit=20000` でパス階層ツリーを返す。store 未設定時は `{"enabled":false}`。
+  - message の先頭 `/` トークンをパスとみなし(`filepath.Clean`)、階層ごとに count を親へ積み上げ。
+  - ルート `/` の Children は count 降順。
+  - `limit` は集計対象行数(既定 20000)。
+- Web UI の Directory Tree パネル: ノードは count に応じた色深度(hsl 青→赤)、クリックで展開/折りたたみ、パスをクリックすると検索(keyword)と連動。
+
 ## 通知(notify)
 - `osascript -e 'display notification "msg" with title "var-watcher"'` を非同期実行。
 - config `notify: true` のとき各エンジンの変更検知時に発火。

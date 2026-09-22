@@ -55,6 +55,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/logs", s.handleLogs)
 	mux.HandleFunc("GET /api/export", s.handleExport)
 	mux.HandleFunc("GET /api/stats", s.handleStats)
+	mux.HandleFunc("GET /api/tree", s.handleTree)
 	mux.HandleFunc("GET /api/alerts", s.handleAlerts)
 	mux.HandleFunc("GET /ws/logs", s.handleWS)
 
@@ -114,6 +115,33 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "stats": stats})
+}
+
+// handleTree はディレクトリ階層のヒートマップ用ツリーを返す。store 未設定なら無効。
+// GET /api/tree?hours=24&limit=20000
+func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
+	if s.store == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": false})
+		return
+	}
+	hours := 24
+	limit := 20000
+	if v := r.URL.Query().Get("hours"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			hours = n
+		}
+	}
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+	root, err := s.store.Tree(hours, limit)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "tree": root})
 }
 
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {

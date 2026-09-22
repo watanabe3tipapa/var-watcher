@@ -115,6 +115,89 @@ func TestEscapeLike(t *testing.T) {
 	}
 }
 
+func TestTree(t *testing.T) {
+	st := openTestStore(t)
+
+	now := time.Now()
+	lines := []Line{
+		{TS: now.Add(-time.Minute), Source: "fswatch", Level: "stdout", Message: "/var/log/system.log Created IsFile"},
+		{TS: now.Add(-2 * time.Minute), Source: "fswatch", Level: "stdout", Message: "/var/log/system.log Modified IsFile"},
+		{TS: now.Add(-3 * time.Minute), Source: "fswatch", Level: "stdout", Message: "/var/log/wifi.log Created IsFile"},
+		{TS: now.Add(-4 * time.Minute), Source: "entr", Level: "stdout", Message: "/var/cache/com.apple/temp.dat Created"},
+		{TS: now.Add(-5 * time.Minute), Source: "entr", Level: "stdout", Message: "no path here"},
+		{TS: now.Add(-6 * time.Minute), Source: "fswatch", Level: "stdout", Message: "/tmp/alpha Created IsFile"},
+		{TS: now.Add(-7 * time.Minute), Source: "fswatch", Level: "stdout", Message: "/tmp/beta Created IsFile"},
+	}
+	for _, l := range lines {
+		if err := st.Append(l); err != nil {
+			t.Fatalf("append: %v", err)
+		}
+	}
+
+	root, err := st.Tree(24, 10000)
+	if err != nil {
+		t.Fatalf("tree: %v", err)
+	}
+	if root.Name != "/" {
+		t.Fatalf("root name: %q", root.Name)
+	}
+	if root.Count != 6 {
+		t.Fatalf("root count should be 6 (pathless skipped), got %d", root.Count)
+	}
+
+	var find func(n *TreeNode, path string) *TreeNode
+	find = func(n *TreeNode, path string) *TreeNode {
+		if n.Path == path {
+			return n
+		}
+		for _, c := range n.Children {
+			if r := find(c, path); r != nil {
+				return r
+			}
+		}
+		return nil
+	}
+
+	logNode := find(root, "/var/log")
+	if logNode == nil {
+		t.Fatal("missing /var/log")
+	}
+	if logNode.Count != 3 {
+		t.Fatalf("/var/log count: %d, want 3", logNode.Count)
+	}
+	logSystem := find(root, "/var/log/system.log")
+	if logSystem == nil || logSystem.Count != 2 {
+		t.Fatalf("system.log node wrong: %+v", logSystem)
+	}
+	cache := find(root, "/var/cache/com.apple")
+	if cache == nil || cache.Count != 1 {
+		t.Fatalf("cache node wrong: %+v", cache)
+	}
+
+	// 降順ソート確認: children[0] が最大 Count
+	if len(root.Children) < 2 {
+		t.Fatalf("expected >=2 top-level children, got %d", len(root.Children))
+	}
+	if root.Children[0].Count < root.Children[1].Count {
+		t.Fatal("children not sorted by count desc")
+	}
+}
+
+func TestParsePath(t *testing.T) {
+	cases := map[string]string{
+		"/private/tmp/a Created IsFile": "/private/tmp/a",
+		"/var/log/system.log Modified":  "/var/log/system.log",
+		"log stream Output: /var/log/x": "/var/log/x",
+		"no path here":                  "",
+		"relative/X Y":                  "",
+	}
+	for in, want := range cases {
+		if got := parsePath(in); got != want {
+			t.Errorf("parsePath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestStats(t *testing.T) {
 	st := openTestStore(t)
 
