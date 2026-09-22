@@ -5,119 +5,136 @@
 [![Last commit](https://img.shields.io/github/last-commit/watanabe3tipapa/var-watcher/main.svg)](https://github.com/watanabe3tipapa/var-watcher/commits/main)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Netlify-00C7B7)](https://var-watcher.netlify.app)
 
-[English](README.md) | [日本語](README_ja.md)
+[日本語](README.md) | [English](README_en.md)
 
 # var-watcher
 
-A macOS-focused monitoring tool (educational) that observes `/var` in real time. It unifies four monitoring engines (`fswatch`, `watchman`, `entr`, and `log stream`) behind a single TUI and a Web UI.
+macOS の `/var` をリアルタイムに監視するツール。`fswatch` / `watchman` / `entr` / `log stream`
+の 4 つの監視エンジンを 1 つの **TUI** と **Web UI** から一元管理できます。
 
-- TUI: `varwatch --tui` (implemented with tview)
-- Web UI: `varwatch --web` (Vue 3 + WebSocket, embedded in the binary)
-- Both: `varwatch --tui --web` (shared state and logs)
+- **TUI**: `varwatch --tui`(tview)
+- **Web UI**: `varwatch --web`(Vue 3 + WebSocket、単一バイナリに同梱)
+- **両方同時**: `varwatch --tui --web`(状態とログは共有)
 
-Homepage / documentation: https://watanabe3tipapa.github.io/var-watcher/
+## 動機
 
-## Overview / Motivation
+このツールは **AI Agent の振る舞いを確認・追跡するため**に作りました。
+コーディングエージェントはコマンド実行やファイル作成・編集・削除を目に見えない場所で行います。
+macOS の `/var` はログ・キャッシュ・一時ファイルが頻繁に書き換わる領域で、
+そこへの変更は Agent の活動の確実な「足あと」です。var-watcher はその足あとを
+リアルタイムに可視化し、後から分析するための証跡として記録できます。
 
-var-watcher was created to visualize filesystem footprints under macOS `/var` in real time. The project is aimed at observing changes (files created/modified/deleted, logs, caches, temporary files) that can serve as a footprint of external activity. The tool reports what changed on the filesystem; it does not attempt to infer reasoning or decisions of agents that caused the changes.
+> 補足: このツールが検知するのは「何が変わったか」であり、Agent の判断内容までは見えません。
+> あくまでファイルシステム上の足あとを追跡するための道具です。
 
-## Main features
+## 特徴
 
-- Unified control of multiple monitoring engines (fswatch / watchman / entr / log stream)
-- Real-time logs streamed to both TUI and Web UI (via WebSocket)
-- Log filtering in the TUI (keyword search)
-- Persistent configuration (stored at `~/.varwatch/config.json`)
-- macOS notifications via `osascript`
-- Plugin support: drop scripts into `plugins/` and they run automatically
-- Dependency detection with hints to install missing tools
-- Single binary distribution: the Web UI is embedded using Go's embed.FS
+- **一元監視** — 各エンジン(fswatch / watchman / entr / log stream)を個別に ON/OFF
+- **リアルタイムログ** — TUI と Web UI(WebSocket)へ即時配信
+- **ログフィルタ** — TUI で `/` を押してキーワード検索、`f` で解除
+- **重複排除** — 同一イベントを `dedup_ms`(既定 500ms)の窓内で LRU により 1 行に集約
+- **ログ永続化 + 時系列検索** — SQLite(pure Go / CGO 不要)へ保存し、キーワード・日時範囲・source で検索
+- **ルールベース アラート** — 「パターン + 時間窓内 N 件」で発火し、macOS 通知(サウンド可)+ Web バッジ
+- **設定保存** — `~/.varwatch/config.json`
+- **macOS 通知** — `osascript` 連携
+- **プラグイン** — `plugins/*.sh` を置くだけで自動実行
+- **依存検知** — 不足コマンドがあれば `brew install` のヒントを表示
+- **単一バイナリ** — Web UI を `embed.FS` で同梱
 
-## Screenshot
+## 設定例(`~/.varwatch/config.json`)
 
-![Screenshot](assets/IMGSS.jpg)
+```json
+{
+  "target": "/var",
+  "enabled": {"fswatch": true, "logstream": false},
+  "args": {"fswatch": ["-xr"]},
+  "notify": false,
+  "max_log_lines": 2000,
+  "dedup_ms": 500,
+  "dedup_max": 4096,
+  "db_path": "~/.varwatch/varwatch.db",
+  "retention_days": 30,
+  "alerts": [
+    {
+      "id": "burst",
+      "name": "一時ファイル急増アラート",
+      "pattern": "created",
+      "source": "fswatch",
+      "min_events": 100,
+      "window_sec": 60,
+      "sound": true
+    }
+  ]
+}
+```
 
-## Requirements
+- `dedup_ms` / `dedup_max`: 重複排除ウィンドウ(ミリ秒、`0` で無効)と LRU の最大エントリ数
+- `db_path` / `retention_days`: 永続化先と保持期間(超過分は起動時に削除)
+- `alerts[]`: 発火条件。`pattern` に一致し、`window_sec` 秒以内に `min_events` 件あれば発火。
+  `sound: true` でサウンド付き通知、`notify: true` で通知のみの設定も可。
 
-- macOS (the project targets monitoring `/var` on macOS)
-- Go toolchain (go.mod indicates Go 1.26)
-- Optional monitoring engine tools (examples shown in Installation)
+## REST API
 
-## Installation (verified steps)
+```bash
+# 時系列・キーワード検索(since/until は RFC3339、q は部分一致)
+curl 'http://localhost:8080/api/logs?since=2026-09-23T00:00:00+09:00&q=burst&limit=50'
 
-The repository provides a Makefile with convenient targets. The README and Makefile include the following example steps:
+# アラート発火履歴
+curl 'http://localhost:8080/api/alerts'
+```
 
-1. Install optional monitoring engines (example via Homebrew):
+## スクリーンショット
 
-   brew install fswatch watchman entr
+![スクリーンショット](assets/IMGSS.jpg)
 
-2. Clone and build the project:
+## インストール
 
-   git clone https://github.com/watanabe3tipapa/var-watcher.git
-   cd var-watcher
-   make build
+```bash
+# 監視エンジンをインストール
+brew install fswatch watchman entr
 
-3. (Optional) Put the built binary on your PATH:
+# クローンしてビルド
+git clone https://github.com/watanabe3tipapa/var-watcher.git
+cd var-watcher
+make build
 
-   sudo mv varwatch /usr/local/bin/
+# (任意)PATH に設定
+sudo mv varwatch /usr/local/bin/
+```
 
-The Makefile also contains targets for development and frontend build:
+## 使い方
 
-- make dev: runs `go run ./cmd/varwatch --tui`
-- make frontend: builds the frontend (runs npm in `frontend/` and copies built assets to `internal/web/dist`)
+```bash
+varwatch --tui                  # 端末 UI
+varwatch --web                  # Web UI(http://localhost:8080)
+varwatch --tui --web            # 両方同時
+varwatch --config /path.json    # 設定ファイルを指定
+```
 
-## Usage (commands shown in repository)
+> `/var` の大半は root 権限が必要なため、TUI は `sudo` で実行してください。
+> `--web` のみの場合は root 不要で起動できます。
 
-Examples from the project README and Makefile:
+詳細な使い方(TUI キーバインド・REST API・設定リファレンス・プラグイン)は
+[ドキュメント](https://watanabe3tipapa.github.io/var-watcher/)または
+[DEV-MEMO.md](DEV-MEMO.md) を参照してください。
 
-  varwatch --tui                  # Terminal UI
-  varwatch --web                  # Web UI at http://localhost:8080
-  varwatch --tui --web            # Both simultaneously
-  varwatch --config /path.json    # Use a custom config file
+[Live Demo](https://var-watcher.netlify.app) もぜひお試しください。
 
-Note: `/var` often requires elevated privileges on macOS. The original README notes running the TUI with `sudo` when monitoring `/var`. Running `--web` alone does not require root privileges.
+## コントリビューション
 
-## Documentation and additional references
+コントリビューションは大歓迎です！
 
-- Project documentation / site: https://watanabe3tipapa.github.io/var-watcher/
-- DEV notes in repository: DEV-MEMO.md
-- Live demo (hosted): https://var-watcher.netlify.app
+1. リポジトリをフォーク
+2. 機能ブランチを作成 (`git checkout -b feature/amazing-feature`)
+3. 変更をコミット (`git commit -m 'Add amazing feature'`)
+4. ブランチにプッシュ (`git push origin feature/amazing-feature`)
+5. [Pull Request](https://github.com/watanabe3tipapa/var-watcher/pulls) を作成
 
-## Project structure (top-level files / directories present)
+## ライセンス
 
-The repository includes, among others, the following entries (as present in the repository root):
+MITライセンス — 詳細は[LICENSE](LICENSE)ファイルを参照してください。
 
-- cmd/         (Go command sources)
-- frontend/    (Vue frontend sources)
-- internal/    (internal Go packages, includes embedded web assets)
-- plugins/     (plugin scripts)
-- demo/        (demo site)
-- astro/       (static site tooling)
-- assets/      (images and static assets)
-- Makefile
-- DEV-MEMO.md
-- LICENSE
+## 連絡先
 
-## Contributing
-
-Contributions are welcome. The repository README includes these basic steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/name`)
-3. Commit your changes
-4. Push the branch
-5. Open a Pull Request on GitHub
-
-For more context and project-specific notes, consult DEV-MEMO.md and the documentation site.
-
-## Development / Maintenance status
-
-The repository indicates an active maintenance status (see badge in header). Refer to the commit history for recent activity.
-
-## License
-
-This project is licensed under the MIT License — see the LICENSE file in the repository for details.
-
-## Contact
-
-GitHub: https://github.com/watanabe3tipapa/var-watcher
+GitHub: [https://github.com/watanabe3tipapa/var-watcher](https://github.com/watanabe3tipapa/var-watcher)
 Homepage / Docs: https://watanabe3tipapa.github.io/var-watcher/
