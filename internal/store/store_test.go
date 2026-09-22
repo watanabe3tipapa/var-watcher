@@ -1,7 +1,10 @@
 package store
 
 import (
+	"bytes"
+	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -109,5 +112,65 @@ func TestEscapeLike(t *testing.T) {
 	}
 	if len(got) != 1 {
 		t.Fatalf("literal %% should match, got %d", len(got))
+	}
+}
+
+func TestExportAllJSON(t *testing.T) {
+	st := openTestStore(t)
+	base := time.Now().Add(-time.Hour)
+	lines := []Line{
+		{TS: base.Add(1 * time.Minute), Source: "fswatch", Level: "stdout", Message: "first"},
+		{TS: base.Add(2 * time.Minute), Source: "entr", Level: "stdout", Message: "second"},
+	}
+	for _, l := range lines {
+		if err := st.Append(l); err != nil {
+			t.Fatalf("append: %v", err)
+		}
+	}
+
+	all, err := st.ExportAll(Query{})
+	if err != nil {
+		t.Fatalf("export all: %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(all))
+	}
+	if all[0].Message != "first" {
+		t.Fatalf("export should be oldest first, got %q", all[0].Message)
+	}
+
+	var buf bytes.Buffer
+	if err := st.WriteJSON(&buf, all); err != nil {
+		t.Fatalf("write json: %v", err)
+	}
+	var decoded []Line
+	if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
+		t.Fatalf("json decode: %v (%s)", err, buf.String())
+	}
+	if len(decoded) != 2 {
+		t.Fatalf("json rows mismatch: %d", len(decoded))
+	}
+}
+
+func TestExportCSV(t *testing.T) {
+	st := openTestStore(t)
+	if err := st.Append(Line{TS: time.Now(), Source: "fswatch", Level: "stdout", Message: `a, "quoted", line`}); err != nil {
+		t.Fatalf("append: %v", err)
+	}
+
+	all, err := st.ExportAll(Query{})
+	if err != nil {
+		t.Fatalf("export all: %v", err)
+	}
+	var buf bytes.Buffer
+	if err := st.WriteCSV(&buf, all); err != nil {
+		t.Fatalf("write csv: %v", err)
+	}
+	out := buf.String()
+	if !strings.HasPrefix(out, "ts,source,level,message\n") {
+		t.Fatalf("csv header missing: %q", out)
+	}
+	if !strings.Contains(out, `"a, ""quoted"", line"`) {
+		t.Fatalf("csv quoting wrong: %q", out)
 	}
 }

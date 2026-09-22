@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"strconv"
@@ -52,6 +53,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/watchers/{name}/start", s.handleStart)
 	mux.HandleFunc("POST /api/watchers/{name}/stop", s.handleStop)
 	mux.HandleFunc("GET /api/logs", s.handleLogs)
+	mux.HandleFunc("GET /api/export", s.handleExport)
 	mux.HandleFunc("GET /api/alerts", s.handleAlerts)
 	mux.HandleFunc("GET /ws/logs", s.handleWS)
 
@@ -93,31 +95,11 @@ func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
-	q := store.Query{}
-	if v := r.URL.Query().Get("source"); v != "" {
-		q.Source = v
+	q, ok := parseQuery(w, r)
+	if !ok {
+		return
 	}
-	if v := r.URL.Query().Get("q"); v != "" {
-		q.Keyword = v
-	}
-	if v := r.URL.Query().Get("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			q.Limit = n
-		}
-	}
-	for name, dst := range map[string]**time.Time{
-		"since": &q.Since,
-		"until": &q.Until,
-	} {
-		if v := r.URL.Query().Get(name); v != "" {
-			t, err := time.Parse(time.RFC3339, v)
-			if err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid " + name + ": " + v})
-				return
-			}
-			*dst = &t
-		}
-	}
+	q.Limit, _ = strconv.Atoi(r.URL.Query().Get("limit"))
 
 	if s.store == nil {
 		writeJSON(w, http.StatusOK, map[string]any{"enabled": false, "logs": []store.Line{}})
@@ -129,6 +111,76 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "logs": lines})
+}
+
+// parseQuery は共通の検索条件(source / q / since / until)をパースする。
+func parseQuery(w http.ResponseWriter, r *http.Request) (store.Query, bool) {
+	q := store.Query{}
+	if v := r.URL.Query().Get("source"); v != "" {
+		q.Source = v
+	}
+	if v := r.URL.Query().Get("q"); v != "" {
+		q.Keyword = v
+	}
+	for name, dst := range map[string]**time.Time{
+		"since": &q.Since,
+		"until": &q.Until,
+	} {
+		if v := r.URL.Query().Get(name); v != "" {
+			t, err := time.Parse(time.RFC3339, v)
+			if err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid " + name + ": " + v})
+				return q, false
+			}
+			*dst = &t
+		}
+	}
+	return q, true
+}
+
+// handleExport は検索条件に一致するログを CSV/JSON でダウンロードさせる。
+// 例: GET /api/export?format=csv&since=...&until=...&source=fswatch&q=created
+func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
+	q, ok := parseQuery(w, r)
+	if !ok {
+		return
+	}
+
+	format := r.URL.Query().Get("format")
+	if format != "csv" && format != "json" {
+		format = "json"
+	}
+
+	if s.store == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": false, "error": "store not configured"})
+		return
+	}
+
+	lines, err := s.store.ExportAll(q)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	ext := ".json"
+	mime := "application/json"
+	if format == "csv" {
+		ext = ".csv"
+		mime = "text/csv; charset=utf-8"
+	}
+	fname := fmt.Sprintf("varwatch-export-%s%s", time.Now().Format("20060102-150405"), ext)
+
+	w.Header().Set("Content-Type", mime)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, fname))
+	if format == "csv" {
+		if err := s.store.WriteCSV(w, lines); err != nil {
+			return
+		}
+		return
+	}
+	if err := s.store.WriteJSON(w, lines); err != nil {
+		return
+	}
 }
 
 func (s *Server) handleAlerts(w http.ResponseWriter, r *http.Request) {

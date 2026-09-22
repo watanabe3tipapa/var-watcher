@@ -2,16 +2,20 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"github.com/watanabe3tipapa/var-watcher/internal/engine"
+	"github.com/watanabe3tipapa/var-watcher/internal/store"
 )
 
 const maxLineLen = 2048
 
-func Run(e *engine.Engine, prereq []engine.Prerequisite, cfgPath string) error {
+func Run(e *engine.Engine, prereq []engine.Prerequisite, cfgPath string, st *store.Store) error {
 	app := tview.NewApplication()
 	maxLines := e.MaxLogLines()
 
@@ -143,6 +147,8 @@ func Run(e *engine.Engine, prereq []engine.Prerequisite, cfgPath string) error {
 			if err := e.Notify("var-watcher notification test"); err != nil {
 				fmt.Fprintln(logView, "[red]notify error: "+err.Error())
 			}
+		case 'e':
+			exportLogs(logView, st)
 		}
 		return ev
 	})
@@ -160,6 +166,42 @@ func watcherNames(e *engine.Engine) []string {
 		out = append(out, i.Name)
 	}
 	return out
+}
+
+// exportLogs は永続化されたログを CSV で ~/.varwatch/export-<日時>.csv に書き出す。
+// 保存先は logView に表示する。store が無い場合は何もしない。
+func exportLogs(view *tview.TextView, st *store.Store) {
+	if st == nil {
+		fmt.Fprintln(view, "[red]export skipped: persistence store is not enabled")
+		return
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintln(view, "[red]export error: "+err.Error())
+		return
+	}
+	dir := filepath.Join(home, ".varwatch")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		fmt.Fprintln(view, "[red]export error: "+err.Error())
+		return
+	}
+	lines, err := st.ExportAll(store.Query{})
+	if err != nil {
+		fmt.Fprintln(view, "[red]export error: "+err.Error())
+		return
+	}
+	path := filepath.Join(dir, "export-"+time.Now().Format("20060102-150405")+".csv")
+	f, err := os.Create(path)
+	if err != nil {
+		fmt.Fprintln(view, "[red]export error: "+err.Error())
+		return
+	}
+	defer f.Close()
+	if err := st.WriteCSV(f, lines); err != nil {
+		fmt.Fprintln(view, "[red]export error: "+err.Error())
+		return
+	}
+	fmt.Fprintf(view, "[green]exported %d lines to %s\n", len(lines), path)
 }
 
 func toggle(app *tview.Application, e *engine.Engine, list *tview.List, header *tview.TextView) {

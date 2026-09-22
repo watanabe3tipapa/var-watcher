@@ -62,6 +62,20 @@ function toISO(v: string): string {
   return Number.isNaN(d.getTime()) ? '' : d.toISOString()
 }
 
+const exportFormat = ref('json')
+
+function doExport() {
+  const p = new URLSearchParams()
+  p.set('format', exportFormat.value)
+  if (keyword.value) p.set('q', keyword.value)
+  if (src.value) p.set('source', src.value)
+  const sinceIso = toISO(since.value)
+  const untilIso = toISO(until.value)
+  if (sinceIso) p.set('since', sinceIso)
+  if (untilIso) p.set('until', untilIso)
+  window.location.href = `/api/export?${p.toString()}`
+}
+
 async function doSearch() {
   searching.value = true
   const p = new URLSearchParams()
@@ -201,6 +215,11 @@ onBeforeUnmount(() => ws?.close())
       </div>
       <div class="row">
         <button class="on" :disabled="searching" @click="doSearch">検索</button>
+        <button class="ex" :disabled="!searchEnabled" @click="doExport">エクスポート</button>
+        <select v-model="exportFormat" class="fmt">
+          <option value="json">JSON</option>
+          <option value="csv">CSV</option>
+        </select>
         <span v-if="!searchEnabled" class="err">永続化が無効 (store 未設定)</span>
         <span v-else class="count">{{ searchResults.length }} 件</span>
       </div>
@@ -249,7 +268,9 @@ li:last-child { border-bottom: none; }
 .err { color: #f87171; }
 button { border: none; border-radius: 6px; padding: 0.4rem 0.9rem; cursor: pointer; font-weight: 600; }
 button.on { background: #16a34a; color: #fff; }
+button.ex { background: #3b82f6; color: #fff; }
 button.off { background: #dc2626; color: #fff; }
+.fmt { min-width: 5rem; width: auto !important; }
 button:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
 #search-view { max-height: 30vh; overflow-y: auto; font-size: 0.8rem; line-height: 1.4; margin: 0; white-space: pre-wrap; word-break: break-all; color: #7dd3a8; }
 #log-view { max-height: 70vh; overflow-y: auto; font-size: 0.8rem; line-height: 1.4; margin: 0; white-space: pre-wrap; word-break: break-all; }

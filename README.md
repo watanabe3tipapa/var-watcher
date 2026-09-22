@@ -35,6 +35,7 @@ macOS の `/var` はログ・キャッシュ・一時ファイルが頻繁に書
 - **重複排除** — 同一イベントを `dedup_ms`(既定 500ms)の窓内で LRU により 1 行に集約
 - **ログ永続化 + 時系列検索** — SQLite(pure Go / CGO 不要)へ保存し、キーワード・日時範囲・source で検索
 - **ルールベース アラート** — 「パターン + 時間窓内 N 件」で発火し、macOS 通知(サウンド可)+ Web バッジ
+- **ログエクスポート** — 検索条件に一致するログを CSV / JSON でダウンロード
 - **設定保存** — `~/.varwatch/config.json`
 - **macOS 通知** — `osascript` 連携
 - **プラグイン** — `plugins/*.sh` を置くだけで自動実行
@@ -81,6 +82,10 @@ curl 'http://localhost:8080/api/logs?since=2026-09-23T00:00:00+09:00&q=burst&lim
 
 # アラート発火履歴
 curl 'http://localhost:8080/api/alerts'
+
+# ログをエクスポート(CSV/JSON、検索条件を適用してダウンロード)
+curl -o logs.csv 'http://localhost:8080/api/export?format=csv&source=fswatch&q=created'
+curl -o logs.json 'http://localhost:8080/api/export?format=json&since=2026-09-23T00:00:00%2B09:00'
 ```
 
 ## スクリーンショット

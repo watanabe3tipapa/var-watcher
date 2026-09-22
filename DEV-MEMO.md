@@ -162,6 +162,14 @@ GET  /                                → embed.FS の Vue dist/
 - Web UI に「Log Search」パネル(キーワード / 日時範囲 / source / limit)。
 - store を開けない場合は `log persistence disabled` と警告し動作継続(非必須)。
 
+## エクスポート
+- `GET /api/export?format=csv|json&since=&until=&source=&q=` でダウンロード。
+  - 既定は `json`。検索条件は `/api/logs` と共通(`parseQuery` で共有)。
+  - CSV はヘッダー `ts,source,level,message` + 古い順(ts ASC)。Content-Disposition は attachment。
+  - store 未設定時は `{"enabled":false}` を返す。
+- Web UI の検索パネルに「エクスポート」ボタン(JSON/CSV 切替)を追加。
+- TUI では `e` キーで全ログを `~/.varwatch/export-<日時>.csv` に書き出す。store 未設定時はスキップ。
+
 ## 通知(notify)
 - `osascript -e 'display notification "msg" with title "var-watcher"'` を非同期実行。
 - config `notify: true` のとき各エンジンの変更検知時に発火。

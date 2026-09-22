@@ -114,6 +114,77 @@ func TestLogsAPI(t *testing.T) {
 	}
 }
 
+func TestExportCSV(t *testing.T) {
+	e := engine.New(config.Default(), engine.NewBus())
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer st.Close()
+
+	now := time.Now()
+	if err := st.Append(store.Line{TS: now, Source: "fswatch", Level: "stdout", Message: "/var/log created"}); err != nil {
+		t.Fatalf("append: %v", err)
+	}
+
+	srv := NewServer(e)
+	srv.SetStore(st)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/api/export?format=csv&q=created")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status: %d", res.StatusCode)
+	}
+	if ct := res.Header.Get("Content-Disposition"); !strings.Contains(ct, "attachment") {
+		t.Fatalf("expected attachment disposition, got %q", ct)
+	}
+	body, _ := io.ReadAll(res.Body)
+	if !strings.HasPrefix(string(body), "ts,source,level,message\n") {
+		t.Fatalf("csv header missing: %q", body)
+	}
+	if !strings.Contains(string(body), "fswatch") {
+		t.Fatalf("csv body missing row: %q", body)
+	}
+}
+
+func TestExportJSON(t *testing.T) {
+	e := engine.New(config.Default(), engine.NewBus())
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer st.Close()
+
+	now := time.Now()
+	if err := st.Append(store.Line{TS: now, Source: "entr", Level: "stdout", Message: "/var/cache changed"}); err != nil {
+		t.Fatalf("append: %v", err)
+	}
+
+	srv := NewServer(e)
+	srv.SetStore(st)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/api/export?format=json&source=entr")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	var lines []store.Line
+	if err := json.Unmarshal(body, &lines); err != nil {
+		t.Fatalf("json decode: %v (%s)", err, body)
+	}
+	if len(lines) != 1 || lines[0].Message != "/var/cache changed" {
+		t.Fatalf("unexpected json export: %+v", lines)
+	}
+}
+
 func TestLogsAPIDisabled(t *testing.T) {
 	e := engine.New(config.Default(), engine.NewBus())
 	srv := NewServer(e) // store 未設定

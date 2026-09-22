@@ -92,7 +92,7 @@ func main() {
 	}
 
 	if *tuiMode {
-		if err := tui.Run(e, prereq, *cfgPath); err != nil {
+		if err := tui.Run(e, prereq, *cfgPath, st); err != nil {
 			log.Fatalf("tui: %v", err)
 		}
 	} else {
