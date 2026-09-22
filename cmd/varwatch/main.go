@@ -7,8 +7,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/watanabe3tipapa/var-watcher/internal/alert"
 	"github.com/watanabe3tipapa/var-watcher/internal/config"
 	"github.com/watanabe3tipapa/var-watcher/internal/engine"
+	"github.com/watanabe3tipapa/var-watcher/internal/notify"
 	"github.com/watanabe3tipapa/var-watcher/internal/plugin"
 	"github.com/watanabe3tipapa/var-watcher/internal/store"
 	"github.com/watanabe3tipapa/var-watcher/internal/tui"
@@ -62,11 +64,24 @@ func main() {
 		}
 	}
 
+	am := alert.NewManager(cfg.Alerts, bus)
+	am.OnFire(func(f alert.Fired, r alert.Rule) {
+		msg := fmt.Sprintf("alert: %s (%d events)", f.Name, f.Count)
+		if r.SoundName != "" {
+			_ = notify.Sound(r.SoundName, msg)
+		} else if cfg.Notify {
+			_ = notify.Show(msg)
+		}
+		bus.Publish(engine.LogLine{Source: "alert", Level: "warn", Message: msg + " — " + f.Last})
+	})
+	go am.Run()
+
 	prereq := engine.CheckPrerequisites(e.Watchers())
 
 	if *webMode {
 		srv := web.NewServer(e)
 		srv.SetStore(st)
+		srv.SetAlerts(am)
 		srv.UseEmbedded()
 		go func() {
 			fmt.Printf("web UI: http://localhost%s\n", *addr)

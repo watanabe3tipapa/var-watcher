@@ -20,6 +20,14 @@ interface LogLine {
   message: string
 }
 
+interface FiredAlert {
+  id: string
+  name: string
+  count: number
+  fired_at: string
+  last?: string
+}
+
 const watchers = ref<WatcherInfo[]>([])
 const logs = ref<LogLine[]>([])
 const connected = ref(false)
@@ -33,6 +41,20 @@ const limit = ref(200)
 const searchEnabled = ref(true)
 const searching = ref(false)
 const searchResults = ref<LogLine[]>([])
+
+const alertsEnabled = ref(false)
+const alerts = ref<FiredAlert[]>([])
+
+async function refreshAlerts() {
+  try {
+    const res = await fetch('/api/alerts')
+    const body = await res.json()
+    alertsEnabled.value = body.enabled ?? false
+    alerts.value = body.fired ?? []
+  } catch {
+    /* ignore */
+  }
+}
 
 function toISO(v: string): string {
   if (!v) return ''
@@ -106,8 +128,10 @@ function connect() {
 
 onMounted(() => {
   refresh()
+  refreshAlerts()
   connect()
   setInterval(refresh, 5000)
+  setInterval(refreshAlerts, 5000)
 })
 
 onBeforeUnmount(() => ws?.close())
@@ -120,6 +144,7 @@ onBeforeUnmount(() => ws?.close())
     <span class="conn" :class="connected ? 'ok' : 'bad'">
       {{ connected ? '● WebSocket 接続中' : '○ 接続待機' }}
     </span>
+    <span v-if="alertsEnabled && alerts.length" class="alert-badge">⚠ {{ alerts.length }} alerts</span>
   </header>
 
   <main>
@@ -140,6 +165,21 @@ onBeforeUnmount(() => ws?.close())
           >
             {{ w.enabled ? 'Stop' : 'Start' }}
           </button>
+        </li>
+      </ul>
+    </section>
+
+    <section class="alerts">
+      <h2>Alerts</h2>
+      <p v-if="alertsEnabled && alerts.length === 0" class="hint">まだアラートはありません。</p>
+      <p v-else-if="!alertsEnabled" class="err">アラート未設定 (config の alerts を確認)</p>
+      <ul v-else>
+        <li v-for="a in alerts" :key="a.id + a.fired_at">
+          <div class="w-info">
+            <strong>⚠ {{ a.name }}</strong>
+            <code>{{ formatTs(a.fired_at) }} — {{ a.count }} events</code>
+            <em v-if="a.last">{{ a.last }}</em>
+          </div>
         </li>
       </ul>
     </section>

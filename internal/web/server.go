@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/watanabe3tipapa/var-watcher/internal/alert"
 	"github.com/watanabe3tipapa/var-watcher/internal/engine"
 	"github.com/watanabe3tipapa/var-watcher/internal/store"
 )
@@ -21,6 +22,7 @@ var upgrader = websocket.Upgrader{
 type Server struct {
 	engine *engine.Engine
 	store  *store.Store
+	alerts *alert.Manager
 	static fs.FS
 }
 
@@ -31,6 +33,11 @@ func NewServer(e *engine.Engine) *Server {
 // SetStore はログ永続化ストアを登録する。/api/logs は store が無いと無効を返す。
 func (s *Server) SetStore(st *store.Store) {
 	s.store = st
+}
+
+// SetAlerts はアラートマネージャを登録する。/api/alerts のフィードに使う。
+func (s *Server) SetAlerts(am *alert.Manager) {
+	s.alerts = am
 }
 
 func (s *Server) Run(addr string) error {
@@ -45,6 +52,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/watchers/{name}/start", s.handleStart)
 	mux.HandleFunc("POST /api/watchers/{name}/stop", s.handleStop)
 	mux.HandleFunc("GET /api/logs", s.handleLogs)
+	mux.HandleFunc("GET /api/alerts", s.handleAlerts)
 	mux.HandleFunc("GET /ws/logs", s.handleWS)
 
 	// 静的ファイル(embed.FS)。無ければ index フォールバックは不要(embed 前提)。
@@ -121,6 +129,14 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "logs": lines})
+}
+
+func (s *Server) handleAlerts(w http.ResponseWriter, r *http.Request) {
+	if s.alerts == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": false, "fired": []alert.Fired{}})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "fired": s.alerts.History()})
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {

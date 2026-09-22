@@ -6,6 +6,18 @@ import (
 	"path/filepath"
 )
 
+// AlertRule は条件付きアラートの 1 ルール。
+type AlertRule struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Pattern   string `json:"pattern"`
+	Source    string `json:"source,omitempty"`
+	Level     string `json:"level,omitempty"`
+	MinEvents int    `json:"min_events"`
+	WindowSec int    `json:"window_sec"`
+	Sound     bool   `json:"sound,omitempty"`
+}
+
 type Config struct {
 	Target        string              `json:"target"`
 	Enabled       map[string]bool     `json:"enabled"`
@@ -16,6 +28,7 @@ type Config struct {
 	DedupMax      int                 `json:"dedup_max"`
 	DbPath        string              `json:"db_path"`
 	RetentionDays int                 `json:"retention_days"`
+	Alerts        []AlertRule         `json:"alerts"`
 }
 
 func Default() *Config {
@@ -77,6 +90,17 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.RetentionDays <= 0 {
 		cfg.RetentionDays = 30
+	}
+	for i := range cfg.Alerts {
+		if cfg.Alerts[i].MinEvents <= 0 {
+			cfg.Alerts[i].MinEvents = 1
+		}
+		if cfg.Alerts[i].WindowSec <= 0 {
+			cfg.Alerts[i].WindowSec = 60
+		}
+		if cfg.Alerts[i].ID == "" {
+			cfg.Alerts[i].ID = cfg.Alerts[i].Name
+		}
 	}
 	return cfg, nil
 }
