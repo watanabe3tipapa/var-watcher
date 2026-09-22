@@ -111,9 +111,10 @@ func (e *Engine) Notify(msg string)        // 通知
 
 ## Web(net/http + WebSocket)
 ```
-GET  /api/watchers                    → []WatcherInfo
-POST /api/watchers/{name}/start       → 204
-POST /api/watchers/{name}/stop        → 204
+GET  /api/watchers                  → []WatcherInfo
+POST /api/watchers/{name}/start     → 204
+POST /api/watchers/{name}/stop      → 204
+GET  /api/logs?since&until&source&q&limit → {enabled, logs:[LogLine]}
 GET  /ws/logs                         → WebSocket で LogLine(JSON) を配信
 GET  /                                → embed.FS の Vue dist/
 ```
@@ -129,12 +130,26 @@ GET  /                                → embed.FS の Vue dist/
   "notify": false,
   "max_log_lines": 2000,
   "dedup_ms": 500,
-  "dedup_max": 4096
+  "dedup_max": 4096,
+  "db_path": "~/.varwatch/varwatch.db",
+  "retention_days": 30
 }
 ```
 - 保存先: `~/.varwatch/config.json`(既定)。`--config` で変更。
 - `dedup_ms`: 同一イベントの重複排除ウィンドウ(ミリ秒)。`0` で無効化。
 - `dedup_max`: 重複排除バッファの最大エントリ数(LRU で追い出し)。
+- `db_path`: ログ永続化先(SQLite)。未指定なら `~/.varwatch/varwatch.db`。
+- `retention_days`: 保持期間(超過分は起動時に `Prune` で削除)。
+
+## 永続化(store)
+- `internal/store` は `modernc.org/sqlite`(pure Go / CGO 不要)を使用。
+- スキーマ: `logs(id, ts, source, level, message)`。`ts` は Unix ミリ秒。
+- 書き込み: main の `persistLogs` が bus を購読 → dedup 済みの行を INSERT。
+- 検索: `GET /api/logs?since=&until=&source=&q=&limit=`。
+  - `since`/`until` は RFC3339。`q` は message の部分一致(LIKE)。
+  - 結果は新しい順(ts DESC, id DESC)。既定 200 / 上限 5000 件。
+- Web UI に「Log Search」パネル(キーワード / 日時範囲 / source / limit)。
+- store を開けない場合は `log persistence disabled` と警告し動作継続(非必須)。
 
 ## 通知(notify)
 - `osascript -e 'display notification "msg" with title "var-watcher"'` を非同期実行。

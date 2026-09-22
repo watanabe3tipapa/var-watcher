@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/watanabe3tipapa/var-watcher/internal/config"
 	"github.com/watanabe3tipapa/var-watcher/internal/engine"
 	"github.com/watanabe3tipapa/var-watcher/internal/plugin"
+	"github.com/watanabe3tipapa/var-watcher/internal/store"
 	"github.com/watanabe3tipapa/var-watcher/internal/tui"
 	"github.com/watanabe3tipapa/var-watcher/internal/web"
 )
@@ -38,6 +40,18 @@ func main() {
 	bus := engine.NewBus()
 	e := engine.New(cfg, bus)
 
+	var st *store.Store
+	if st, err = store.Open(cfg.ResolveDbPath()); err != nil {
+		fmt.Fprintf(os.Stderr, "log persistence disabled: %v\n", err)
+		st = nil
+	} else {
+		if n, perr := st.Prune(time.Duration(cfg.RetentionDays) * 24 * time.Hour); perr == nil && n > 0 {
+			fmt.Printf("cleaned %d persisted log(s) (retention %dd)\n", n, cfg.RetentionDays)
+		}
+		go persistLogs(bus, st)
+		fmt.Printf("log persistence: %s\n", cfg.ResolveDbPath())
+	}
+
 	if ws, err := plugin.Discover(*pluginDir, bus); err != nil {
 		fmt.Fprintf(os.Stderr, "plugin scan: %v\n", err)
 	} else {
@@ -52,6 +66,7 @@ func main() {
 
 	if *webMode {
 		srv := web.NewServer(e)
+		srv.SetStore(st)
 		srv.UseEmbedded()
 		go func() {
 			fmt.Printf("web UI: http://localhost%s\n", *addr)
@@ -67,5 +82,22 @@ func main() {
 		}
 	} else {
 		select {}
+	}
+}
+
+// persistLogs は bus を購読して SQLite に書き込む。書き込み失敗は回数上限付きで通知する。
+func persistLogs(bus *engine.Bus, st *store.Store) {
+	ch, unsub := bus.Subscribe()
+	defer unsub()
+	errs := 0
+	for line := range ch {
+		if err := st.Append(store.Line{
+			TS: line.TS, Source: line.Source, Level: line.Level, Message: line.Message,
+		}); err != nil {
+			errs++
+			if errs <= 3 || errs%100 == 0 {
+				fmt.Fprintf(os.Stderr, "persist error: %v\n", err)
+			}
+		}
 	}
 }
