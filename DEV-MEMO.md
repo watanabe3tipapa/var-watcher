@@ -132,7 +132,18 @@ GET  /                                → embed.FS の Vue dist/
   "dedup_ms": 500,
   "dedup_max": 4096,
   "db_path": "~/.varwatch/varwatch.db",
-  "retention_days": 30
+  "retention_days": 30,
+  "alerts": [
+    {
+      "id": "burst",
+      "name": "一時ファイル急増アラート",
+      "pattern": "created",
+      "source": "entr",
+      "min_events": 100,
+      "window_sec": 60,
+      "sound": true
+    }
+  ]
 }
 ```
 - 保存先: `~/.varwatch/config.json`(既定)。`--config` で変更。
