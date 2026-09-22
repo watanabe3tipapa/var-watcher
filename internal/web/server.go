@@ -54,6 +54,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/watchers/{name}/stop", s.handleStop)
 	mux.HandleFunc("GET /api/logs", s.handleLogs)
 	mux.HandleFunc("GET /api/export", s.handleExport)
+	mux.HandleFunc("GET /api/stats", s.handleStats)
 	mux.HandleFunc("GET /api/alerts", s.handleAlerts)
 	mux.HandleFunc("GET /ws/logs", s.handleWS)
 
@@ -92,6 +93,27 @@ func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleStats はダッシュボード用の集計を返す。store 未設定なら無効を返す。
+// GET /api/stats?hours=24
+func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
+	if s.store == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": false})
+		return
+	}
+	hours := 24
+	if v := r.URL.Query().Get("hours"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			hours = n
+		}
+	}
+	stats, err := s.store.Stats(hours)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "stats": stats})
 }
 
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {

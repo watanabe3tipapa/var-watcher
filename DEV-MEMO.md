@@ -170,6 +170,15 @@ GET  /                                → embed.FS の Vue dist/
 - Web UI の検索パネルに「エクスポート」ボタン(JSON/CSV 切替)を追加。
 - TUI では `e` キーで全ログを `~/.varwatch/export-<日時>.csv` に書き出す。store 未設定時はスキップ。
 
+## 統計ダッシュボード
+- `GET /api/stats?hours=24` で集計を返す。store 未設定時は `{"enabled":false}`。
+  - `total`: 直近 hours 時間の合計行数。
+  - `hourly`: 1 時間バケット × 24(0 埋め)。
+  - `weekly`: 曜日別 7 件(直近 hours 時間より古い日は 0)。
+  - `by_source`: エンジン別行数(降順)。
+  - `top_paths`: message 先頭トークンをパスとみなす TOP10(単純抽出のため log stream 等はノイズが出る)。
+- Web UI の Dashboard(24h)パネルに純 CSS/SVG バーチャート(時間帯別・エンジン別)と TOP 変更パス一覧を表示。30 秒間隔で再取得。
+
 ## 通知(notify)
 - `osascript -e 'display notification "msg" with title "var-watcher"'` を非同期実行。
 - config `notify: true` のとき各エンジンの変更検知時に発火。

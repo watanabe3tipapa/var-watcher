@@ -185,6 +185,71 @@ func TestExportJSON(t *testing.T) {
 	}
 }
 
+func TestStatsAPI(t *testing.T) {
+	e := engine.New(config.Default(), engine.NewBus())
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer st.Close()
+
+	now := time.Now()
+	if err := st.Append(store.Line{TS: now, Source: "fswatch", Level: "stdout", Message: "/var/log created"}); err != nil {
+		t.Fatalf("append: %v", err)
+	}
+
+	srv := NewServer(e)
+	srv.SetStore(st)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/api/stats?hours=24")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	var payload struct {
+		Enabled bool        `json:"enabled"`
+		Stats   store.Stats `json:"stats"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !payload.Enabled {
+		t.Fatal("expected enabled=true with store set")
+	}
+	if payload.Stats.Total != 1 {
+		t.Fatalf("expected 1 total, got %d", payload.Stats.Total)
+	}
+	if len(payload.Stats.Hourly) != 24 {
+		t.Fatalf("expected 24 hourly buckets, got %d", len(payload.Stats.Hourly))
+	}
+}
+
+func TestStatsAPIDisabled(t *testing.T) {
+	e := engine.New(config.Default(), engine.NewBus())
+	srv := NewServer(e) // store 未設定
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/api/stats")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	var payload struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if payload.Enabled {
+		t.Fatal("expected enabled=false without store")
+	}
+}
+
 func TestLogsAPIDisabled(t *testing.T) {
 	e := engine.New(config.Default(), engine.NewBus())
 	srv := NewServer(e) // store 未設定

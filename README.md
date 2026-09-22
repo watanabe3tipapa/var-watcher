@@ -36,6 +36,7 @@ macOS の `/var` はログ・キャッシュ・一時ファイルが頻繁に書
 - **ログ永続化 + 時系列検索** — SQLite(pure Go / CGO 不要)へ保存し、キーワード・日時範囲・source で検索
 - **ルールベース アラート** — 「パターン + 時間窓内 N 件」で発火し、macOS 通知(サウンド可)+ Web バッジ
 - **ログエクスポート** — 検索条件に一致するログを CSV / JSON でダウンロード
+- **統計ダッシュボード** — 時間帯別イベント数・エンジン別比率・TOP 変更パスを Web で可視化
 - **設定保存** — `~/.varwatch/config.json`
 - **macOS 通知** — `osascript` 連携
 - **プラグイン** — `plugins/*.sh` を置くだけで自動実行
@@ -86,6 +87,9 @@ curl 'http://localhost:8080/api/alerts'
 # ログをエクスポート(CSV/JSON、検索条件を適用してダウンロード)
 curl -o logs.csv 'http://localhost:8080/api/export?format=csv&source=fswatch&q=created'
 curl -o logs.json 'http://localhost:8080/api/export?format=json&since=2026-09-23T00:00:00%2B09:00'
+
+# 統計ダッシュボード用の集計(時間帯別 / 曜日別 / エンジン別 / TOPパス)
+curl 'http://localhost:8080/api/stats?hours=24'
 ```
 
 ## スクリーンショット

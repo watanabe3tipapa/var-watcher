@@ -45,6 +45,41 @@ const searchResults = ref<LogLine[]>([])
 const alertsEnabled = ref(false)
 const alerts = ref<FiredAlert[]>([])
 
+interface StatsBucket { label: string; count: number }
+interface StatsSource { source: string; count: number }
+interface StatsTopPath { path: string; count: number }
+interface StatsPayload {
+  total: number
+  hourly: StatsBucket[]
+  weekly: StatsBucket[]
+  by_source: StatsSource[]
+  top_paths: StatsTopPath[]
+  window_sec: number
+}
+
+const statsEnabled = ref(false)
+const stats = ref<StatsPayload | null>(null)
+
+async function refreshStats() {
+  try {
+    const res = await fetch('/api/stats?hours=24')
+    const body = await res.json()
+    statsEnabled.value = body.enabled ?? false
+    stats.value = body.stats ?? null
+  } catch {
+    statsEnabled.value = false
+  }
+}
+
+function maxCount(buckets: StatsBucket[]): number {
+  return buckets.reduce((m, b) => (b.count > m ? b.count : m), 0)
+}
+
+function barWidth(b: StatsBucket, n: number): string {
+  if (n === 0) return '0%'
+  return `${Math.max(2, Math.round((b.count / n) * 100))}%`
+}
+
 async function refreshAlerts() {
   try {
     const res = await fetch('/api/alerts')
@@ -143,9 +178,11 @@ function connect() {
 onMounted(() => {
   refresh()
   refreshAlerts()
+  refreshStats()
   connect()
   setInterval(refresh, 5000)
   setInterval(refreshAlerts, 5000)
+  setInterval(refreshStats, 30000)
 })
 
 onBeforeUnmount(() => ws?.close())
@@ -196,6 +233,49 @@ onBeforeUnmount(() => ws?.close())
           </div>
         </li>
       </ul>
+    </section>
+
+    <section class="dashboard">
+      <h2>Dashboard (24h)</h2>
+      <p v-if="!statsEnabled" class="err">永続化が無効 (store 未設定)</p>
+      <template v-else-if="stats">
+        <div class="stat-total">
+          合計イベント: <strong>{{ stats.total }}</strong>
+          <span class="hint">(過去 24 時間)</span>
+        </div>
+
+        <h3 class="stat-h">時間帯別イベント数</h3>
+        <div class="bars">
+          <div v-for="b in stats.hourly" :key="b.label" class="bar-row">
+            <span class="bar-label">{{ b.label }}</span>
+            <div class="bar-track">
+              <div class="bar-fill" :style="{ width: barWidth(b, stats.total) }" :title="`${b.label}: ${b.count}`"></div>
+            </div>
+            <span class="bar-count">{{ b.count }}</span>
+          </div>
+        </div>
+
+        <h3 class="stat-h">エンジン別</h3>
+        <div class="bars">
+          <div v-for="s in stats.by_source" :key="s.source" class="bar-row">
+            <span class="bar-label">{{ s.source }}</span>
+            <div class="bar-track">
+              <div class="bar-fill src" :style="{ width: barWidth({ label: s.source, count: s.count }, stats.total) }" :title="`${s.source}: ${s.count}`"></div>
+            </div>
+            <span class="bar-count">{{ s.count }}</span>
+          </div>
+        </div>
+
+        <h3 class="stat-h">TOP 10 変更パス</h3>
+        <ul>
+          <li v-for="p in stats.top_paths" :key="p.path">
+            <div class="w-info">
+              <code>{{ p.path }}</code>
+              <em>{{ p.count }} 件</em>
+            </div>
+          </li>
+        </ul>
+      </template>
     </section>
 
     <div class="col">
@@ -274,4 +354,14 @@ button.off { background: #dc2626; color: #fff; }
 button:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
 #search-view { max-height: 30vh; overflow-y: auto; font-size: 0.8rem; line-height: 1.4; margin: 0; white-space: pre-wrap; word-break: break-all; color: #7dd3a8; }
 #log-view { max-height: 70vh; overflow-y: auto; font-size: 0.8rem; line-height: 1.4; margin: 0; white-space: pre-wrap; word-break: break-all; }
+.stat-total { margin-bottom: 0.5rem; font-size: 0.9rem; }
+.stat-h { margin: 0.75rem 0 0.25rem; font-size: 0.8rem; text-transform: uppercase; color: #94a3b8; }
+.bars { display: flex; flex-direction: column; gap: 0.25rem; }
+.bar-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.7rem; }
+.bar-label { min-width: 3.5rem; color: #94a3b8; text-align: right; }
+.bar-track { flex: 1; background: #1e293b; border-radius: 4px; height: 0.8rem; overflow: hidden; }
+.bar-fill { height: 100%; background: #38bdf8; border-radius: 4px 0 0 4px; }
+.bar-fill.src { background: #a78bfa; }
+.bar-count { min-width: 2.5rem; color: #e2e8f0; }
+.hint { color: #94a3b8; font-size: 0.75rem; }
 </style>

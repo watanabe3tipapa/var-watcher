@@ -115,6 +115,58 @@ func TestEscapeLike(t *testing.T) {
 	}
 }
 
+func TestStats(t *testing.T) {
+	st := openTestStore(t)
+
+	now := time.Now()
+	lines := []Line{
+		{TS: now.Add(-time.Minute), Source: "fswatch", Level: "stdout", Message: "/var/log/a created"},
+		{TS: now.Add(-2 * time.Minute), Source: "fswatch", Level: "stdout", Message: "/var/log/a created"},
+		{TS: now.Add(-3 * time.Minute), Source: "entr", Level: "stdout", Message: "/var/cache/b changed"},
+		{TS: now.Add(-3 * time.Hour), Source: "plugin:sample", Level: "stdout", Message: "/tmp/c removed"},
+	}
+	for _, l := range lines {
+		if err := st.Append(l); err != nil {
+			t.Fatalf("append: %v", err)
+		}
+	}
+
+	// 直近 2 時間の集計(= 先頭 3 件 / plugin は範囲外)
+	s, err := st.Stats(2)
+	if err != nil {
+		t.Fatalf("stats: %v", err)
+	}
+	if s.Total != 3 {
+		t.Fatalf("expected 3 total, got %d", s.Total)
+	}
+	if len(s.Hourly) != 24 {
+		t.Fatalf("expected 24 hourly buckets, got %d", len(s.Hourly))
+	}
+	sum := int64(0)
+	for _, b := range s.Hourly {
+		sum += b.Count
+	}
+	if sum != 3 {
+		t.Fatalf("hourly sum mismatch: %d", sum)
+	}
+	if len(s.Weekly) != 7 {
+		t.Fatalf("expected 7 weekday buckets, got %d", len(s.Weekly))
+	}
+
+	if len(s.BySource) < 2 {
+		t.Fatalf("expected >=2 sources, got %d", len(s.BySource))
+	}
+	if s.BySource[0].Source != "fswatch" {
+		t.Fatalf("expected fswatch first, got %q", s.BySource[0].Source)
+	}
+	if len(s.TopPaths) == 0 {
+		t.Fatal("expected top paths")
+	}
+	if s.TopPaths[0].Path != "/var/log/a" {
+		t.Fatalf("expected /var/log/a top, got %q", s.TopPaths[0].Path)
+	}
+}
+
 func TestExportAllJSON(t *testing.T) {
 	st := openTestStore(t)
 	base := time.Now().Add(-time.Hour)
