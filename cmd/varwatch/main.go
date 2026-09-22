@@ -9,6 +9,7 @@ import (
 
 	"github.com/watanabe3tipapa/var-watcher/internal/alert"
 	"github.com/watanabe3tipapa/var-watcher/internal/config"
+	"github.com/watanabe3tipapa/var-watcher/internal/diff"
 	"github.com/watanabe3tipapa/var-watcher/internal/engine"
 	"github.com/watanabe3tipapa/var-watcher/internal/notify"
 	"github.com/watanabe3tipapa/var-watcher/internal/plugin"
@@ -76,12 +77,16 @@ func main() {
 	})
 	go am.Run()
 
+	dm := diff.New(50)
+	go diffWatch(bus, dm)
+
 	prereq := engine.CheckPrerequisites(e.Watchers())
 
 	if *webMode {
 		srv := web.NewServer(e)
 		srv.SetStore(st)
 		srv.SetAlerts(am)
+		srv.SetDiffs(dm)
 		srv.UseEmbedded()
 		go func() {
 			fmt.Printf("web UI: http://localhost%s\n", *addr)
@@ -97,6 +102,15 @@ func main() {
 		}
 	} else {
 		select {}
+	}
+}
+
+// diffWatch は bus を購読し、ファイル変更メッセージから前後比較を管理する。
+func diffWatch(bus *engine.Bus, dm *diff.Manager) {
+	ch, unsub := bus.Subscribe()
+	defer unsub()
+	for line := range ch {
+		dm.Capture(line.Message)
 	}
 }
 

@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/watanabe3tipapa/var-watcher/internal/pathutil"
 )
 
 // TreeNode はディレクトリツリーの 1 ノード。Count は自身と子孫の合計。
@@ -47,7 +49,7 @@ func (s *Store) Tree(hours int, limit int) (*TreeNode, error) {
 		if err := rows.Scan(&source, &message); err != nil {
 			return nil, fmt.Errorf("store: tree scan: %w", err)
 		}
-		p := parsePath(message)
+		p := pathutil.FromMessage(message)
 		if p == "" {
 			continue
 		}
@@ -61,18 +63,6 @@ func (s *Store) Tree(hours int, limit int) (*TreeNode, error) {
 	convertTree(root, "/", out)
 	sortTree(out)
 	return out, nil
-}
-
-// parsePath は message からパス先頭トークンを抽出する。
-// fswatch 等は "したパス Created IsFile"、log stream は先頭にタイム等を含むため、
-// 「/」で始まる最初のトークンをパスとして採用する。
-func parsePath(message string) string {
-	for _, tok := range strings.Fields(message) {
-		if strings.HasPrefix(tok, "/") {
-			return filepath.Clean(tok)
-		}
-	}
-	return ""
 }
 
 // emit はパス p の各階層に件数を加算する。

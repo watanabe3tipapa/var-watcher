@@ -139,6 +139,38 @@ function applyTreeFilter(path: string) {
   doSearch()
 }
 
+interface DiffChange {
+  kind: 'added' | 'removed' | 'context'
+  line: string
+  line_no: number
+}
+
+interface FileDiff {
+  path: string
+  ts: string
+  added: number
+  removed: number
+  changes: DiffChange[]
+}
+
+const diffsEnabled = ref(false)
+const diffs = ref<FileDiff[]>([])
+
+async function refreshDiffs() {
+  try {
+    const res = await fetch('/api/diffs?limit=20')
+    const body = await res.json()
+    diffsEnabled.value = body.enabled ?? false
+    diffs.value = body.diffs ?? []
+  } catch {
+    diffsEnabled.value = false
+  }
+}
+
+function diffKindCls(kind: string): string {
+  return kind === 'added' ? 'diff-add' : kind === 'removed' ? 'diff-del' : 'diff-ctx'
+}
+
 function maxCount(buckets: StatsBucket[]): number {
   return buckets.reduce((m, b) => (b.count > m ? b.count : m), 0)
 }
@@ -248,11 +280,13 @@ onMounted(() => {
   refreshAlerts()
   refreshStats()
   refreshTree()
+  refreshDiffs()
   connect()
   setInterval(refresh, 5000)
   setInterval(refreshAlerts, 5000)
   setInterval(refreshStats, 30000)
   setInterval(refreshTree, 30000)
+  setInterval(refreshDiffs, 5000)
 })
 
 onBeforeUnmount(() => ws?.close())
@@ -374,6 +408,26 @@ onBeforeUnmount(() => ws?.close())
       </template>
     </section>
 
+    <section class="diffs">
+      <h2>Diffs (file changes)</h2>
+      <p class="hint">テキストファイルの変更前後をハイライト(緑: 追加 / 赤: 削除)。CTRL で複数選択可。</p>
+      <p v-if="!diffsEnabled" class="err">差分管理が無効 (main で未登録)</p>
+      <p v-else-if="diffs.length === 0" class="hint">まだ差分はありません。</p>
+      <div v-for="d in diffs" :key="d.path + d.ts" class="diff-card">
+        <div class="diff-head">
+          <strong>{{ d.path }}</strong>
+          <span class="diff-meta">
+            {{ formatTs(d.ts) }} — <em class="add">+{{ d.added }}</em> / <em class="del">-{{ d.removed }}</em>
+          </span>
+        </div>
+        <pre class="diff-body">
+          <span v-for="(c, i) in d.changes" :key="i" :class="[diffKindCls(c.kind), c.kind + '-row']">
+<span v-if="c.kind !== 'context'" class="diff-mark">{{ c.kind === 'added' ? '+' : '-' }}</span><span v-else class="diff-mark"> </span>{{ c.line }}
+</span>
+        </pre>
+      </div>
+    </section>
+
     <div class="col">
       <section class="search">
         <h2>Log Search (persisted)</h2>
@@ -465,4 +519,14 @@ button:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
 .tree-folder { background: none; border: none; color: #94a3b8; padding: 0 2px; cursor: pointer; font-size: 0.7rem; }
 .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e2e8f0; }
 .tree-count { color: #94a3b8; min-width: 3rem; text-align: right; }
+.diff-card { border: 1px solid #334155; border-radius: 6px; margin-bottom: 0.75rem; overflow: hidden; }
+.diff-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.4rem 0.6rem; background: #0b1220; font-size: 0.75rem; }
+.diff-meta { color: #94a3b8; white-space: nowrap; }
+.diff-meta .add { color: #4ade80; }
+.diff-meta .del { color: #f87171; }
+.diff-body { margin: 0; padding: 0.3rem 0.5rem; font-size: 0.72rem; line-height: 1.5; max-height: 16rem; overflow-y: auto; }
+.add-row { background: rgba(74, 222, 128, 0.12); color: #a7f3d0; }
+.del-row { background: rgba(248, 113, 113, 0.12); color: #fecaca; }
+.ctx-row { color: #64748b; }
+.diff-mark { display: inline-block; width: 1rem; user-select: none; }
 </style>

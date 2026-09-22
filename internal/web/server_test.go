@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/watanabe3tipapa/var-watcher/internal/config"
+	"github.com/watanabe3tipapa/var-watcher/internal/diff"
 	"github.com/watanabe3tipapa/var-watcher/internal/engine"
 	"github.com/watanabe3tipapa/var-watcher/internal/store"
 )
@@ -318,5 +320,61 @@ func TestLogsAPIDisabled(t *testing.T) {
 	}
 	if payload.Enabled {
 		t.Fatal("expected enabled=false without store")
+	}
+}
+
+func TestDiffsAPI(t *testing.T) {
+	e := engine.New(config.Default(), engine.NewBus())
+	dir := t.TempDir()
+	path := filepath.Join(dir, "app.log")
+	if err := os.WriteFile(path, []byte("a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	dm := diff.New(5)
+	dm.Capture(path + " Modified") // 初回スナップショット
+	if err := os.WriteFile(path, []byte("a\nb\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if d := dm.Capture(path + " Modified"); d == nil {
+		t.Fatal("expected a diff after modification")
+	}
+
+	srv := NewServer(e)
+	srv.SetDiffs(dm)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/api/diffs")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), `"added":1`) {
+		t.Fatalf("expected added count 1 in body: %s", body)
+	}
+}
+
+func TestDiffsAPIDisabled(t *testing.T) {
+	e := engine.New(config.Default(), engine.NewBus())
+	srv := NewServer(e)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/api/diffs")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	var payload struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if payload.Enabled {
+		t.Fatal("expected enabled=false without manager")
 	}
 }

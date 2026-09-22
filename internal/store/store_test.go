@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/watanabe3tipapa/var-watcher/internal/pathutil"
 )
 
 func openTestStore(t *testing.T) *Store {
@@ -192,8 +194,8 @@ func TestParsePath(t *testing.T) {
 		"relative/X Y":                  "",
 	}
 	for in, want := range cases {
-		if got := parsePath(in); got != want {
-			t.Errorf("parsePath(%q) = %q, want %q", in, got, want)
+		if got := pathutil.FromMessage(in); got != want {
+			t.Errorf("pathutil.FromMessage(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

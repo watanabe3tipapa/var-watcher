@@ -10,6 +10,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/watanabe3tipapa/var-watcher/internal/alert"
+	"github.com/watanabe3tipapa/var-watcher/internal/diff"
 	"github.com/watanabe3tipapa/var-watcher/internal/engine"
 	"github.com/watanabe3tipapa/var-watcher/internal/store"
 )
@@ -24,6 +25,7 @@ type Server struct {
 	engine *engine.Engine
 	store  *store.Store
 	alerts *alert.Manager
+	diffs  *diff.Manager
 	static fs.FS
 }
 
@@ -41,6 +43,11 @@ func (s *Server) SetAlerts(am *alert.Manager) {
 	s.alerts = am
 }
 
+// SetDiffs は差分管理マネージャを登録する。/api/diffs のフィードに使う。
+func (s *Server) SetDiffs(dm *diff.Manager) {
+	s.diffs = dm
+}
+
 func (s *Server) Run(addr string) error {
 	srv := &http.Server{Addr: addr, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	return srv.ListenAndServe()
@@ -56,6 +63,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/export", s.handleExport)
 	mux.HandleFunc("GET /api/stats", s.handleStats)
 	mux.HandleFunc("GET /api/tree", s.handleTree)
+	mux.HandleFunc("GET /api/diffs", s.handleDiffs)
 	mux.HandleFunc("GET /api/alerts", s.handleAlerts)
 	mux.HandleFunc("GET /ws/logs", s.handleWS)
 
@@ -142,6 +150,20 @@ func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "tree": root})
+}
+
+func (s *Server) handleDiffs(w http.ResponseWriter, r *http.Request) {
+	if s.diffs == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": false, "diffs": []*diff.Diff{}})
+		return
+	}
+	limit := 50
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			limit = n
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "diffs": s.diffs.Lookup(limit)})
 }
 
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
