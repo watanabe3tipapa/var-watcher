@@ -81,8 +81,9 @@ func (e *Engine) Notify(msg string)        // 通知
 
 ### ログバス(bus.go)
 - `Subscribe() (ch <-chan LogLine, unsub func())` の Pub/Sub。バッファ枯渇時はドロップ(oldest を捨てる)。
-- `LogLine { TS time.Time, Source, Level string, Message string }`。
+- `LogLine { TS time.Time, Source, Level string, Message string }`。TS が空なら bus が現在時刻を付与。
 - TUI / WebSocket はそれぞれ別購読者として購読。
+- 重複排除: `EnableDedup(window, max)` を有効にすると `Level + Message` をキーにウィンドウ内の同一イベントを除去(dedup.go の LRU バッファ)。`window <= 0` で無効。
 
 ### Watcher(watcher.go)
 - `exec.CommandContext(ctx, path, args...)`。起動失敗(未インストール等)は `ErrNotInstalled` / `ErrNotPermitted` で区別。
@@ -126,10 +127,14 @@ GET  /                                → embed.FS の Vue dist/
   "enabled": {"fswatch": true, "logstream": false},
   "args": {"fswatch": ["-xr"]},
   "notify": false,
-  "max_log_lines": 2000
+  "max_log_lines": 2000,
+  "dedup_ms": 500,
+  "dedup_max": 4096
 }
 ```
 - 保存先: `~/.varwatch/config.json`(既定)。`--config` で変更。
+- `dedup_ms`: 同一イベントの重複排除ウィンドウ(ミリ秒)。`0` で無効化。
+- `dedup_max`: 重複排除バッファの最大エントリ数(LRU で追い出し)。
 
 ## 通知(notify)
 - `osascript -e 'display notification "msg" with title "var-watcher"'` を非同期実行。

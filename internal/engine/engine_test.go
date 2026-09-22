@@ -117,3 +117,99 @@ func waitEnabledFalse(t *testing.T, w *Watcher) {
 	}
 	t.Fatal("watcher still enabled after Stop")
 }
+
+func TestBusDedupDropsDuplicate(t *testing.T) {
+	b := NewBus()
+	b.EnableDedup(500*time.Millisecond, 16)
+	ch, un := b.Subscribe()
+	defer un()
+
+	b.Publish(LogLine{Source: "a", Level: "info", Message: "/var/x changed"})
+	b.Publish(LogLine{Source: "b", Level: "info", Message: "/var/x changed"})
+
+	select {
+	case <-ch:
+	default:
+		t.Fatal("first event should be delivered")
+	}
+	select {
+	case <-ch:
+		t.Fatal("duplicate within window should be dropped")
+	default:
+	}
+}
+
+func TestBusDedupWindowExpiry(t *testing.T) {
+	b := NewBus()
+	b.EnableDedup(50*time.Millisecond, 16)
+	ch, un := b.Subscribe()
+	defer un()
+
+	b.Publish(LogLine{Source: "a", Level: "info", Message: "/var/y changed"})
+	select {
+	case <-ch:
+	case <-time.After(time.Second):
+		t.Fatal("first event missing")
+	}
+
+	time.Sleep(80 * time.Millisecond)
+	b.Publish(LogLine{Source: "b", Level: "info", Message: "/var/y changed"})
+	select {
+	case <-ch:
+	default:
+		t.Fatal("event after window expiry should be allowed")
+	}
+}
+
+func TestBusDedupDisabledByZeroWindow(t *testing.T) {
+	b := NewBus()
+	b.EnableDedup(0, 16)
+	ch, un := b.Subscribe()
+	defer un()
+
+	for i := 0; i < 2; i++ {
+		b.Publish(LogLine{Source: "a", Level: "info", Message: "/var/z changed"})
+		select {
+		case <-ch:
+		case <-time.After(time.Second):
+			t.Fatalf("event %d missing (dedup should be disabled)", i+1)
+		}
+	}
+}
+
+func TestDeduperLRUCap(t *testing.T) {
+	d := newDeduper(time.Hour, 3)
+	now := time.Now()
+	for i := 0; i < 3; i++ {
+		if !d.Allow("k"+string(rune('0'+i)), now.Add(time.Duration(i)*time.Millisecond)) {
+			t.Fatalf("new key k%d should be allowed", i)
+		}
+	}
+	if d.Allow("k0", now.Add(4*time.Millisecond)) {
+		t.Fatal("k0 within window should be duplicate")
+	}
+
+	// 4th key evicts least recently used (k1)
+	if !d.Allow("k3", now.Add(5*time.Millisecond)) {
+		t.Fatal("k3 should be allowed (new)")
+	}
+	if !d.Allow("k1", now.Add(6*time.Millisecond)) {
+		t.Fatal("k1 was evicted, should be allowed again")
+	}
+}
+
+func TestBusStampsTimestamp(t *testing.T) {
+	b := NewBus()
+	ch, un := b.Subscribe()
+	defer un()
+
+	b.Publish(LogLine{Source: "a", Level: "info", Message: "/var/ts changed"})
+	select {
+	case line := <-ch:
+		if line.TS.IsZero() {
+			t.Fatal("TS should be stamped by the bus")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("event missing")
+	}
+}

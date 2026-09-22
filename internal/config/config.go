@@ -12,6 +12,8 @@ type Config struct {
 	Args        map[string][]string `json:"args"`
 	Notify      bool                `json:"notify"`
 	MaxLogLines int                 `json:"max_log_lines"`
+	DedupMs     int                 `json:"dedup_ms"`
+	DedupMax    int                 `json:"dedup_max"`
 }
 
 func Default() *Config {
@@ -21,6 +23,8 @@ func Default() *Config {
 		Args:        map[string][]string{},
 		Notify:      false,
 		MaxLogLines: 2000,
+		DedupMs:     500,
+		DedupMax:    4096,
 	}
 }
 
@@ -49,6 +53,12 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.MaxLogLines <= 0 {
 		cfg.MaxLogLines = 2000
+	}
+	if cfg.DedupMs < 0 {
+		cfg.DedupMs = 0
+	}
+	if cfg.DedupMax <= 0 {
+		cfg.DedupMax = 4096
 	}
 	return cfg, nil
 }

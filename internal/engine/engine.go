@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/watanabe3tipapa/var-watcher/internal/config"
 	"github.com/watanabe3tipapa/var-watcher/internal/notify"
@@ -32,6 +33,7 @@ func New(cfg *config.Config, bus *Bus) *Engine {
 	if bus == nil {
 		bus = NewBus()
 	}
+	bus.EnableDedup(time.Duration(cfg.DedupMs)*time.Millisecond, cfg.DedupMax)
 	e := &Engine{cfg: cfg, bus: bus, watchers: make(map[string]*Watcher)}
 	for _, w := range Builtins(cfg, bus) {
 		e.watchers[w.Name] = w
