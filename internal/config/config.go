@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/watanabe3tipapa/var-watcher/internal/i18n"
 )
 
 // AlertRule は条件付きアラートの 1 ルール。
@@ -20,6 +22,7 @@ type AlertRule struct {
 }
 
 type Config struct {
+	Lang          string              `json:"lang"`
 	Target        string              `json:"target"`
 	Enabled       map[string]bool     `json:"enabled"`
 	Args          map[string][]string `json:"args"`
@@ -44,6 +47,7 @@ type Preset struct {
 
 func Default() *Config {
 	return &Config{
+		Lang:          "ja",
 		Target:        "/var",
 		Enabled:       map[string]bool{},
 		Args:          map[string][]string{},
@@ -139,6 +143,7 @@ func Load(path string) (*Config, error) {
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, err
 	}
+	cfg.Lang = i18n.NormalizeLang(cfg.Lang)
 	if cfg.MaxLogLines <= 0 {
 		cfg.MaxLogLines = 2000
 	}

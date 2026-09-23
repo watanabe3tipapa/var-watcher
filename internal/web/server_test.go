@@ -484,3 +484,66 @@ func TestPresetApplyAPI(t *testing.T) {
 		t.Fatalf("expected 400 for unknown preset, got %d", res2.StatusCode)
 	}
 }
+
+func TestConfigAPI(t *testing.T) {
+	e := engine.New(config.Default(), engine.NewBus())
+	srv := NewServer(e)
+	srv.SetLang("en")
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/api/config")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), `"lang":"en"`) {
+		t.Fatalf("expected lang en, got: %s", body)
+	}
+}
+
+func TestConfigAPIDefaultLang(t *testing.T) {
+	e := engine.New(config.Default(), engine.NewBus())
+	srv := NewServer(e)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/api/config")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), `"lang":"ja"`) {
+		t.Fatalf("expected default lang ja, got: %s", body)
+	}
+}
+
+func TestInvalidSinceLocalized(t *testing.T) {
+	cases := []struct{ lang, want string }{
+		{"ja", "開始日時の形式が不正です"},
+		{"en", "invalid since"},
+	}
+	for _, c := range cases {
+		e := engine.New(config.Default(), engine.NewBus())
+		srv := NewServer(e)
+		srv.SetLang(c.lang)
+		ts := httptest.NewServer(srv.Handler())
+
+		res, err := http.Get(ts.URL + "/api/logs?since=bad-date")
+		if err != nil {
+			t.Fatalf("get: %v", err)
+		}
+		body, _ := io.ReadAll(res.Body)
+		res.Body.Close()
+		ts.Close()
+
+		if res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("%s: expected 400, got %d", c.lang, res.StatusCode)
+		}
+		if !strings.Contains(string(body), c.want) {
+			t.Fatalf("%s: expected localized error containing %q, got: %s", c.lang, c.want, body)
+		}
+	}
+}

@@ -1,5 +1,29 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { LANG_KEY, i18n, normalizeLang } from './i18n'
+
+const { t, locale } = useI18n()
+
+function setLang(lang: string) {
+  locale.value = normalizeLang(lang)
+  localStorage.setItem(LANG_KEY, locale.value)
+}
+
+async function initLang() {
+  const saved = localStorage.getItem(LANG_KEY)
+  if (saved && normalizeLang(saved) === saved) {
+    locale.value = saved
+    return
+  }
+  try {
+    const res = await fetch('/api/config')
+    const body = await res.json()
+    locale.value = normalizeLang(body?.lang)
+  } catch {
+    locale.value = normalizeLang(navigator.language)
+  }
+}
 
 interface WatcherInfo {
   name: string
@@ -219,13 +243,13 @@ async function applyPreset(id: string) {
   const res = await fetch(`/api/presets/${encodeURIComponent(id)}/apply`, { method: 'POST' })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    logs.value.push({ ts: new Date().toISOString(), source: 'api', level: 'error', message: body?.error ?? 'preset apply failed' })
+    logs.value.push({ ts: new Date().toISOString(), source: 'api', level: 'error', message: body?.error ?? t('errors.presetApply') })
     return
   }
   const body = await res.json()
   presetTarget.value = body.target ?? presetTarget.value
   await refresh()
-  logs.value.push({ ts: new Date().toISOString(), source: 'api', level: 'info', message: `preset applied: ${body.applied} → ${presetTarget.value}` })
+  logs.value.push({ ts: new Date().toISOString(), source: 'api', level: 'info', message: t('errors.presetApplied', { id: body.applied, target: presetTarget.value }) })
 }
 
 interface PerfSample {
@@ -319,7 +343,7 @@ async function toggle(w: WatcherInfo) {
   const res = await fetch(`/api/watchers/${encodeURIComponent(w.name)}/${action}`, { method: 'POST' })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    logs.value.push({ ts: new Date().toISOString(), source: 'api', level: 'error', message: body?.error ?? 'failed' })
+    logs.value.push({ ts: new Date().toISOString(), source: 'api', level: 'error', message: body?.error ?? t('errors.watchAction') })
     return
   }
   await refresh()
@@ -327,7 +351,7 @@ async function toggle(w: WatcherInfo) {
 
 function formatTs(ts: string): string {
   const d = new Date(ts)
-  return Number.isNaN(d.getTime()) ? ts : d.toLocaleTimeString()
+  return Number.isNaN(d.getTime()) ? ts : d.toLocaleTimeString(locale.value)
 }
 
 let ws: WebSocket | null = null
@@ -352,6 +376,7 @@ function connect() {
 }
 
 onMounted(() => {
+  initLang()
   refresh()
   refreshAlerts()
   refreshStats()
@@ -374,89 +399,90 @@ onBeforeUnmount(() => ws?.close())
 <template>
   <header>
     <h1>var-watcher</h1>
-    <p class="sub">macOS /var 監視 — TUI / Web UI 統合</p>
+    <p class="sub">{{ t('header.sub') }}</p>
+    <button class="lang" @click="setLang(locale === 'ja' ? 'en' : 'ja')">{{ t('header.switchTo') }}</button>
     <span class="conn" :class="connected ? 'ok' : 'bad'">
-      {{ connected ? '● WebSocket 接続中' : '○ 接続待機' }}
+      {{ connected ? t('header.connOk') : t('header.connWait') }}
     </span>
-    <span v-if="alertsEnabled && alerts.length" class="alert-badge">⚠ {{ alerts.length }} alerts</span>
+    <span v-if="alertsEnabled && alerts.length" class="alert-badge">⚠ {{ t('header.alerts', alerts.length) }}</span>
   </header>
 
   <main>
     <section class="watchers">
-      <h2>Watchers</h2>
+      <h2>{{ t('watchers.title') }}</h2>
       <ul>
         <li v-for="w in watchers" :key="w.name">
           <div class="w-info">
             <strong>{{ w.name }}</strong>
             <code>{{ w.command }} {{ w.args.join(' ') }}</code>
             <em v-if="w.state === 'running'">(pid {{ w.pid }})</em>
-            <em v-else-if="w.state === 'error'" class="err">error: {{ w.error }}</em>
+            <em v-else-if="w.state === 'error'" class="err">{{ t('watchers.error') }}: {{ w.error }}</em>
           </div>
           <button
             :class="w.enabled ? 'off' : 'on'"
             :disabled="!w.installed"
             @click="toggle(w)"
           >
-            {{ w.enabled ? 'Stop' : 'Start' }}
+            {{ w.enabled ? t('watchers.stop') : t('watchers.start') }}
           </button>
         </li>
       </ul>
     </section>
 
     <section class="presets">
-      <h2>Presets</h2>
+      <h2>{{ t('presets.title') }}</h2>
       <div class="row">
         <select v-model="presetId" class="preset-select">
           <option v-for="p in presets" :key="p.id" :value="p.id">{{ p.name || p.id }}</option>
         </select>
-        <button class="ex" @click="applyPreset(presetId)">適用</button>
-        <span class="count">target: <code>{{ presetTarget }}</code></span>
+        <button class="ex" @click="applyPreset(presetId)">{{ t('presets.apply') }}</button>
+        <span class="count">{{ t('presets.target') }} <code>{{ presetTarget }}</code></span>
       </div>
-      <p class="hint">プリセットは target と有効エンジンをまとめて切り替えます。</p>
+      <p class="hint">{{ t('presets.hint') }}</p>
     </section>
 
     <section class="dashboard">
-      <h2>Performance</h2>
-      <p v-if="!perfEnabled" class="err">パフォーマンス監視が無効</p>
+      <h2>{{ t('perf.title') }}</h2>
+      <p v-if="!perfEnabled" class="err">{{ t('perf.disabled') }}</p>
       <template v-else-if="perf">
-        <div v-if="perf.warned" class="perf-warn">⚠ メモリ使用量が高水準です ({{ perf.mem_warn_mb }} MiB 以上)</div>
+        <div v-if="perf.warned" class="perf-warn">{{ t('perf.warn', { n: perf.mem_warn_mb }) }}</div>
         <div class="stat-total">
-          イベント/s: <strong>{{ perfMax('events_sec') > 0 ? perf.samples[perf.samples.length - 1]?.events_sec ?? 0 : 0 }}</strong>
-          <span class="hint">(直近 {{ perf.samples.length }}s)</span>
+          {{ t('perf.eventsPerSec') }} <strong>{{ perfMax('events_sec') > 0 ? perf.samples[perf.samples.length - 1]?.events_sec ?? 0 : 0 }}</strong>
+          <span class="hint">{{ t('perf.last', { n: perf.samples.length }) }}</span>
         </div>
-        <h3 class="stat-h">イベント処理レート (events/sec)</h3>
+        <h3 class="stat-h">{{ t('perf.rate') }}</h3>
         <div class="bars">
           <div v-for="(s, i) in perf.samples.slice(-20)" :key="i" class="bar-row">
-            <span class="bar-label">{{ new Date(s.ts).toLocaleTimeString([], { minute: '2-digit', second: '2-digit' }) }}</span>
+            <span class="bar-label">{{ new Date(s.ts).toLocaleTimeString(locale, { minute: '2-digit', second: '2-digit' }) }}</span>
             <div class="bar-track">
               <div class="bar-fill" :style="{ width: perfWidth(s.events_sec, perfMax('events_sec')) }" :title="`${s.events_sec} events/s`"></div>
             </div>
             <span class="bar-count">{{ s.events_sec }}</span>
           </div>
         </div>
-        <h3 class="stat-h">ヒープ使用量 (MiB)</h3>
+        <h3 class="stat-h">{{ t('perf.heap') }}</h3>
         <div class="bars">
           <div v-for="(s, i) in perf.samples.slice(-20)" :key="i" class="bar-row">
-            <span class="bar-label">{{ new Date(s.ts).toLocaleTimeString([], { minute: '2-digit', second: '2-digit' }) }}</span>
+            <span class="bar-label">{{ new Date(s.ts).toLocaleTimeString(locale, { minute: '2-digit', second: '2-digit' }) }}</span>
             <div class="bar-track">
               <div class="bar-fill mem" :style="{ width: perfWidth(s.alloc_mb, perfMax('alloc_mb')) }" :title="`${s.alloc_mb} MiB`"></div>
             </div>
             <span class="bar-count">{{ s.alloc_mb }}</span>
           </div>
         </div>
-        <p class="hint">goroutines: {{ perf.samples[perf.samples.length - 1]?.goroutines ?? 0 }} / cpu: {{ (perf.samples[perf.samples.length - 1]?.cpu_sec ?? 0).toFixed(2) }}s</p>
+        <p class="hint">{{ t('perf.cpu', { g: perf.samples[perf.samples.length - 1]?.goroutines ?? 0, c: (perf.samples[perf.samples.length - 1]?.cpu_sec ?? 0).toFixed(2) }) }}</p>
       </template>
     </section>
 
     <section class="alerts">
-      <h2>Alerts</h2>
-      <p v-if="alertsEnabled && alerts.length === 0" class="hint">まだアラートはありません。</p>
-      <p v-else-if="!alertsEnabled" class="err">アラート未設定 (config の alerts を確認)</p>
+      <h2>{{ t('alerts.title') }}</h2>
+      <p v-if="alertsEnabled && alerts.length === 0" class="hint">{{ t('alerts.none') }}</p>
+      <p v-else-if="!alertsEnabled" class="err">{{ t('alerts.notConfigured') }}</p>
       <ul v-else>
         <li v-for="a in alerts" :key="a.id + a.fired_at">
           <div class="w-info">
             <strong>⚠ {{ a.name }}</strong>
-            <code>{{ formatTs(a.fired_at) }} — {{ a.count }} events</code>
+            <code>{{ formatTs(a.fired_at) }} — {{ t('alerts.count', a.count) }}</code>
             <em v-if="a.last">{{ a.last }}</em>
           </div>
         </li>
@@ -464,15 +490,15 @@ onBeforeUnmount(() => ws?.close())
     </section>
 
     <section class="dashboard">
-      <h2>Dashboard (24h)</h2>
-      <p v-if="!statsEnabled" class="err">永続化が無効 (store 未設定)</p>
+      <h2>{{ t('stats.title') }}</h2>
+      <p v-if="!statsEnabled" class="err">{{ t('stats.disabled') }}</p>
       <template v-else-if="stats">
         <div class="stat-total">
-          合計イベント: <strong>{{ stats.total }}</strong>
-          <span class="hint">(過去 24 時間)</span>
+          {{ t('stats.total') }} <strong>{{ stats.total }}</strong>
+          <span class="hint">{{ t('stats.last24h') }}</span>
         </div>
 
-        <h3 class="stat-h">時間帯別イベント数</h3>
+        <h3 class="stat-h">{{ t('stats.hourly') }}</h3>
         <div class="bars">
           <div v-for="b in stats.hourly" :key="b.label" class="bar-row">
             <span class="bar-label">{{ b.label }}</span>
@@ -483,7 +509,7 @@ onBeforeUnmount(() => ws?.close())
           </div>
         </div>
 
-        <h3 class="stat-h">エンジン別</h3>
+        <h3 class="stat-h">{{ t('stats.bySource') }}</h3>
         <div class="bars">
           <div v-for="s in stats.by_source" :key="s.source" class="bar-row">
             <span class="bar-label">{{ s.source }}</span>
@@ -494,12 +520,12 @@ onBeforeUnmount(() => ws?.close())
           </div>
         </div>
 
-        <h3 class="stat-h">TOP 10 変更パス</h3>
+        <h3 class="stat-h">{{ t('stats.topPaths') }}</h3>
         <ul>
           <li v-for="p in stats.top_paths" :key="p.path">
             <div class="w-info">
               <code>{{ p.path }}</code>
-              <em>{{ p.count }} 件</em>
+              <em>{{ t('stats.count', p.count) }}</em>
             </div>
           </li>
         </ul>
@@ -507,10 +533,10 @@ onBeforeUnmount(() => ws?.close())
     </section>
 
     <section class="dashboard">
-      <h2>Directory Tree (heatmap 24h)</h2>
-      <p v-if="!treeEnabled" class="err">永続化が無効 (store 未設定)</p>
+      <h2>{{ t('tree.title') }}</h2>
+      <p v-if="!treeEnabled" class="err">{{ t('tree.disabled') }}</p>
       <template v-else-if="tree">
-        <p class="hint">色が濃いほど変更が多い(クリックで展開/折りたたみ、パスで検索)</p>
+        <p class="hint">{{ t('tree.hint') }}</p>
         <div class="tree">
           <div class="tree-row" :style="{ background: heatColor(tree.count, treeMax(tree)) }">
             <button class="tree-folder" @click="toggleNode(tree)">{{ collapsed.has(tree.path) ? '▸' : '▾' }}</button>
@@ -533,10 +559,10 @@ onBeforeUnmount(() => ws?.close())
     </section>
 
     <section class="diffs">
-      <h2>Diffs (file changes)</h2>
-      <p class="hint">テキストファイルの変更前後をハイライト(緑: 追加 / 赤: 削除)。CTRL で複数選択可。</p>
-      <p v-if="!diffsEnabled" class="err">差分管理が無効 (main で未登録)</p>
-      <p v-else-if="diffs.length === 0" class="hint">まだ差分はありません。</p>
+      <h2>{{ t('diffs.title') }}</h2>
+      <p class="hint">{{ t('diffs.hint') }}</p>
+      <p v-if="!diffsEnabled" class="err">{{ t('diffs.disabled') }}</p>
+      <p v-else-if="diffs.length === 0" class="hint">{{ t('diffs.none') }}</p>
       <div v-for="d in diffs" :key="d.path + d.ts" class="diff-card">
         <div class="diff-head">
           <strong>{{ d.path }}</strong>
@@ -554,38 +580,38 @@ onBeforeUnmount(() => ws?.close())
 
     <div class="col">
       <section class="search">
-        <h2>Log Search (persisted)</h2>
+        <h2>{{ t('search.title') }}</h2>
       <div class="row">
-        <input v-model="keyword" type="text" placeholder="キーワード (path / message)" @keyup.enter="doSearch" />
+        <input v-model="keyword" type="text" :placeholder="t('search.keywordPlaceholder')" @keyup.enter="doSearch" />
         <select v-model="src">
-          <option value="">全 source</option>
+          <option value="">{{ t('search.allSources') }}</option>
           <option v-for="w in watchers" :key="w.name" :value="w.name">{{ w.name }}</option>
         </select>
       </div>
       <div class="row">
-        <label>from <input v-model="since" type="datetime-local" /></label>
-        <label>to <input v-model="until" type="datetime-local" /></label>
-        <label>limit <input v-model.number="limit" type="number" min="1" max="5000" /></label>
+        <label>{{ t('search.from') }} <input v-model="since" type="datetime-local" /></label>
+        <label>{{ t('search.to') }} <input v-model="until" type="datetime-local" /></label>
+        <label>{{ t('search.limit') }} <input v-model.number="limit" type="number" min="1" max="5000" /></label>
       </div>
       <div class="row">
-        <button class="on" :disabled="searching" @click="doSearch">検索</button>
-        <button class="ex" :disabled="!searchEnabled" @click="doExport">エクスポート</button>
+        <button class="on" :disabled="searching" @click="doSearch">{{ t('search.search') }}</button>
+        <button class="ex" :disabled="!searchEnabled" @click="doExport">{{ t('search.export') }}</button>
         <select v-model="exportFormat" class="fmt">
           <option value="json">JSON</option>
           <option value="csv">CSV</option>
         </select>
-        <span v-if="!searchEnabled" class="err">永続化が無効 (store 未設定)</span>
-        <span v-else class="count">{{ searchResults.length }} 件</span>
+        <span v-if="!searchEnabled" class="err">{{ t('search.disabled') }}</span>
+        <span v-else class="count">{{ t('search.count', searchResults.length) }}</span>
       </div>
       <pre id="search-view">
-        <span v-if="searchResults.length === 0 && !searching">検索結果はここに表示されます。</span>
+        <span v-if="searchResults.length === 0 && !searching">{{ t('search.hint') }}</span>
         <span v-for="(l, i) in searchResults" :key="'s' + i">
 [{{ formatTs(l.ts) }}] [{{ l.source }}] {{ l.message }}
 </span>
       </pre>
       </section>
       <section class="logs">
-        <h2>Logs</h2>
+        <h2>{{ t('logs.title') }}</h2>
         <pre id="log-view">
           <span v-for="(l, i) in logs" :key="i">
 [{{ formatTs(l.ts) }}] [{{ l.source }}] {{ l.message }}
@@ -623,6 +649,7 @@ li:last-child { border-bottom: none; }
 button { border: none; border-radius: 6px; padding: 0.4rem 0.9rem; cursor: pointer; font-weight: 600; }
 button.on { background: #16a34a; color: #fff; }
 button.ex { background: #3b82f6; color: #fff; }
+button.lang { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; font-size: 0.75rem; padding: 0.3rem 0.7rem; }
 button.off { background: #dc2626; color: #fff; }
 .fmt { min-width: 5rem; width: auto !important; }
 button:disabled { background: #334155; color: #64748b; cursor: not-allowed; }

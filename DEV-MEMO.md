@@ -212,6 +212,18 @@ GET  /                                → embed.FS の Vue dist/
 - `GET /api/perf`: `{enabled, warned, mem_warn_mb, samples[]}`。未登録時は `{"enabled":false}`。
 - Web UI の Performance パネル: 直近 20 件のミニバーチャート(イベント/s・ヒープ MiB)+ goroutines / CPU 秒。警告時は赤枠表示。2 秒間隔で取得。
 
+## 多言語対応(i18n)
+- 対象: Web UI(フロント)+ API のエラーメッセージ(Go)。TUI は対象外(提案 10 は「対象 UI: Web」)。
+- config の `lang`(既定 `ja`、`en` のみ正規化。未知値は `ja`)で Go 側の文言を切替。
+- `internal/i18n`: 平文辞書(`ja`/`en`)+ `NormalizeLang` + `T(lang, key, args...)`。全キーを未配置言語のとき日本語にフォールバック、それも無ければキー名。
+- web の `SetLang` でサーバ言語を設定(NewServer の既定は `ja`)。`parseQuery` は Server のメソッドにして since/until エラーを i18n 化。export の store 未設定文言・`/`(フロント未同梱時)のモック文言も i18n 化。
+- `GET /api/config`: `{"lang":"ja"}` を返す(フロント初期言語の参照用)。
+- フロント: `vue-i18n`(legacy: false)+ `src/i18n/{ja,en}.ts`(フラットなドットキー)+ `index.ts`。
+  - 言語初期化順: localStorage(`varwatch.lang`)→ `/api/config` の `lang` → browser `navigator.language`。
+  - ヘッダーのボタンで `ja`/`en` を切替(ボタン文言は切り替え先言語名)。`toLocaleTimeString` も `locale` を渡す。
+  - ログに書くメッセージ(`errors.presetApplied` 等)も `t()` で署名付きプレースホルダ化。
+- 言語追加時: `src/i18n/<lang>.ts` + `VALID_LANGS` に追記 + Go 側 `messages` マップへ追記、の 3 点セット。
+
 ## 通知(notify)
 - `osascript -e 'display notification "msg" with title "var-watcher"'` を非同期実行。
 - config `notify: true` のとき各エンジンの変更検知時に発火。

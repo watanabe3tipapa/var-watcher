@@ -97,6 +97,7 @@ func main() {
 
 	if *webMode {
 		srv := web.NewServer(e)
+		srv.SetLang(cfg.Lang)
 		srv.SetStore(st)
 		srv.SetAlerts(am)
 		srv.SetDiffs(dm)

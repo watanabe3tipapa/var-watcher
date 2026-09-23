@@ -8,11 +8,40 @@ import (
 
 func TestDefaultPresets(t *testing.T) {
 	d := Default()
-	if len(d.Presets) == 0 {
-		t.Fatal("expected default presets")
+	if d.Lang != "ja" {
+		t.Fatalf("default lang = %q, want ja", d.Lang)
 	}
-	if got := d.Presets[0].ID; got != "logs" {
-		t.Fatalf("first preset id = %q, want logs", got)
+	if d.Target != "/var" {
+		t.Fatalf("default target = %q, want /var", d.Target)
+	}
+	if len(d.Presets) != 3 {
+		t.Fatalf("presets = %d, want 3", len(d.Presets))
+	}
+}
+
+func TestLoadLang(t *testing.T) {
+	cases := []struct {
+		lang string
+		want string
+	}{
+		{"", "ja"},
+		{"en", "en"},
+		{"ja", "ja"},
+		{"fr", "ja"},
+	}
+	for _, c := range cases {
+		path := filepath.Join(t.TempDir(), "c.json")
+		data := `{"lang": "` + c.lang + `", "target": "/var"}`
+		if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Lang != c.want {
+			t.Errorf("lang %q → %q, want %q", c.lang, cfg.Lang, c.want)
+		}
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/watanabe3tipapa/var-watcher/internal/alert"
 	"github.com/watanabe3tipapa/var-watcher/internal/diff"
 	"github.com/watanabe3tipapa/var-watcher/internal/engine"
+	"github.com/watanabe3tipapa/var-watcher/internal/i18n"
 	"github.com/watanabe3tipapa/var-watcher/internal/perf"
 	"github.com/watanabe3tipapa/var-watcher/internal/store"
 )
@@ -23,6 +24,7 @@ var upgrader = websocket.Upgrader{
 }
 
 type Server struct {
+	lang   string
 	engine *engine.Engine
 	store  *store.Store
 	alerts *alert.Manager
@@ -32,7 +34,12 @@ type Server struct {
 }
 
 func NewServer(e *engine.Engine) *Server {
-	return &Server{engine: e}
+	return &Server{engine: e, lang: "ja"}
+}
+
+// SetLang は UI の表示言語("ja" / "en"、設定の lang と同期)を登録する。
+func (s *Server) SetLang(lang string) {
+	s.lang = i18n.NormalizeLang(lang)
 }
 
 // SetStore はログ永続化ストアを登録する。/api/logs は store が無いと無効を返す。
@@ -75,6 +82,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/presets/{id}/apply", s.handleApplyPreset)
 	mux.HandleFunc("GET /api/perf", s.handlePerf)
 	mux.HandleFunc("GET /api/alerts", s.handleAlerts)
+	mux.HandleFunc("GET /api/config", s.handleConfig)
 	mux.HandleFunc("GET /ws/logs", s.handleWS)
 
 	// 静的ファイル(embed.FS)。無ければ index フォールバックは不要(embed 前提)。
@@ -83,13 +91,18 @@ func (s *Server) Handler() http.Handler {
 	} else {
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]string{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"name":    "var-watcher",
-				"message": "frontend not embedded; run `make frontend` and rebuild",
+				"message": i18n.T(s.lang, "frontend_not_embedded"),
 			})
 		})
 	}
 	return mux
+}
+
+// handleConfig はフロントエンドが言語等を参照するための軽量設定を返す。
+func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"lang": s.lang})
 }
 
 func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
@@ -177,7 +190,7 @@ func (s *Server) handleDiffs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
-	q, ok := parseQuery(w, r)
+	q, ok := s.parseQuery(w, r)
 	if !ok {
 		return
 	}
@@ -196,7 +209,7 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseQuery は共通の検索条件(source / q / since / until)をパースする。
-func parseQuery(w http.ResponseWriter, r *http.Request) (store.Query, bool) {
+func (s *Server) parseQuery(w http.ResponseWriter, r *http.Request) (store.Query, bool) {
 	q := store.Query{}
 	if v := r.URL.Query().Get("source"); v != "" {
 		q.Source = v
@@ -211,7 +224,11 @@ func parseQuery(w http.ResponseWriter, r *http.Request) (store.Query, bool) {
 		if v := r.URL.Query().Get(name); v != "" {
 			t, err := time.Parse(time.RFC3339, v)
 			if err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid " + name + ": " + v})
+				key := "err_invalid_since"
+				if name == "until" {
+					key = "err_invalid_until"
+				}
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(s.lang, key, v)})
 				return q, false
 			}
 			*dst = &t
@@ -223,7 +240,7 @@ func parseQuery(w http.ResponseWriter, r *http.Request) (store.Query, bool) {
 // handleExport は検索条件に一致するログを CSV/JSON でダウンロードさせる。
 // 例: GET /api/export?format=csv&since=...&until=...&source=fswatch&q=created
 func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
-	q, ok := parseQuery(w, r)
+	q, ok := s.parseQuery(w, r)
 	if !ok {
 		return
 	}
@@ -234,7 +251,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.store == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"enabled": false, "error": "store not configured"})
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": false, "error": i18n.T(s.lang, "err_store_not_configured")})
 		return
 	}
 

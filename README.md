@@ -41,6 +41,7 @@ macOS の `/var` はログ・キャッシュ・一時ファイルが頻繁に書
 - **差分表示** — 変更検知時にテキストファイルをスナップショットし、前後比較(追加: 緑 / 削除: 赤)を Web でハイライト表示
 - **監視対象プリセット** — 対象パスと有効エンジンをまとめたプリセット(logs / caches / temp)を同梱し、いずれかをワンタップで適用
 - **パフォーマンスモニタリング** — イベント処理レート・ヒープ使用量・CPU を Web でミニグラフ表示。メモリ閾値(512 MiB)超過で警告
+- **多言語対応(日本語 / English)** — Web UI をヘッダーのボタンで即時切替(localStorage 保存、設定の `lang` と同期)。API のエラーメッセージも `config.lang` に応じて切り替え
 - **設定保存** — `~/.varwatch/config.json`
 - **macOS 通知** — `osascript` 連携
 - **プラグイン** — `plugins/*.sh` を置くだけで自動実行
@@ -51,6 +52,7 @@ macOS の `/var` はログ・キャッシュ・一時ファイルが頻繁に書
 
 ```json
 {
+  "lang": "ja",
   "target": "/var",
   "enabled": {"fswatch": true, "logstream": false},
   "args": {"fswatch": ["-xr"]},
@@ -79,6 +81,7 @@ macOS の `/var` はログ・キャッシュ・一時ファイルが頻繁に書
 }
 ```
 
+- `lang`: 表示言語(`ja` / `en`。既定 `ja`)。Web UI のデフォルトと API のエラーメッセージに反映
 - `dedup_ms` / `dedup_max`: 重複排除ウィンドウ(ミリ秒、`0` で無効)と LRU の最大エントリ数
 - `db_path` / `retention_days`: 永続化先と保持期間(超過分は起動時に削除)
 - `alerts[]`: 発火条件。`pattern` に一致し、`window_sec` 秒以内に `min_events` 件あれば発火。
@@ -113,6 +116,9 @@ curl -X POST 'http://localhost:8080/api/presets/logs/apply'
 
 # パフォーマンスサンプル(メモリ / CPU / イベント/s)
 curl 'http://localhost:8080/api/perf'
+
+# 表示言語(設定の lang。Web UI の初期言語にも使用)
+curl 'http://localhost:8080/api/config'
 ```
 
 ## スクリーンショット
