@@ -196,6 +196,13 @@ GET  /                                → embed.FS の Vue dist/
 - Web UI の Diffs パネル: 行単位で追加(緑)/削除(赤)/コンテキスト(薄)をハイライト。5 秒間隔で再取得。
 - main.go で `diffWatch` を起動し、bus の全行を `dm.Capture` に流す(要 store 設定ではなく独立動作)。
 
+## プリセット(監視対象プリセット保存・切替)
+- config の `presets[]` に `{id, name, target, enabled, filter}` を定義。未設定なら `logs` / `caches` / `temp` のデフォルトが入る。
+- 注意: `json.Unmarshal` は既存の map フィールドへマージ書き込みするため、`config.Load` は `Default()` の Presets を先に nil へ戻してから読み込む(マージ事故の防止)。
+- `engine.ApplyPreset(id)`: config へ適用後、組み込み watcher を停止→再構築して有効なものだけ Start。プラグインは引き継がれる。
+- TUI: `p` キーで次のプリセットへ循環切替。Web: Presets パネル(セレクト + 適用ボタン)。
+- API: `GET /api/presets`(一覧+現在 target)、`POST /api/presets/{id}/apply`(適用)。
+
 ## 通知(notify)
 - `osascript -e 'display notification "msg" with title "var-watcher"'` を非同期実行。
 - config `notify: true` のとき各エンジンの変更検知時に発火。
