@@ -186,6 +186,16 @@ GET  /                                → embed.FS の Vue dist/
   - `limit` は集計対象行数(既定 20000)。
 - Web UI の Directory Tree パネル: ノードは count に応じた色深度(hsl 青→赤)、クリックで展開/折りたたみ、パスをクリックすると検索(keyword)と連動。
 
+## 差分表示(diff)
+- `internal/diff`: `Manager.Capture(message)` がメッセージからパスを抽出し、ファイル内容をスナップショット。前回と比較して変更があれば `Diff`(行単位 Change 列)を履歴へ追加。
+  - pathutil で `/` 始まりトークンを抽出(store/tree と共通)。
+  - バイナリ(NUL 含む)/1MiB 超/不可読/ディレクトリは対象外(メタデータ表示なし)。
+  - 差分アルゴリズムは行単位 LCS(DP)。制限: oldLines×newLines が 400,000 超は Changes を空にしてスキップ。
+  - 履歴上限はデフォルト 50 件(main で diff.New(50))。
+- `GET /api/diffs?limit=N`: 直近 N 件(新しい順)。未登録時は `{"enabled":false}`。
+- Web UI の Diffs パネル: 行単位で追加(緑)/削除(赤)/コンテキスト(薄)をハイライト。5 秒間隔で再取得。
+- main.go で `diffWatch` を起動し、bus の全行を `dm.Capture` に流す(要 store 設定ではなく独立動作)。
+
 ## 通知(notify)
 - `osascript -e 'display notification "msg" with title "var-watcher"'` を非同期実行。
 - config `notify: true` のとき各エンジンの変更検知時に発火。
