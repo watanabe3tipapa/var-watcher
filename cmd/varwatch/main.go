@@ -19,6 +19,8 @@ import (
 	"github.com/watanabe3tipapa/var-watcher/internal/web"
 )
 
+var version = "dev"
+
 func main() {
 	var (
 		tuiMode   = flag.Bool("tui", false, "run terminal UI")
@@ -26,8 +28,14 @@ func main() {
 		addr      = flag.String("addr", ":8080", "web UI listen address")
 		cfgPath   = flag.String("config", "", "config file (default ~/.varwatch/config.json)")
 		pluginDir = flag.String("plugins", "plugins", "plugins directory")
+		showVer   = flag.Bool("version", false, "print version and exit")
 	)
 	flag.Parse()
+
+	if *showVer {
+		fmt.Println("var-watcher " + version)
+		return
+	}
 
 	if !*tuiMode && !*webMode {
 		*tuiMode = true
