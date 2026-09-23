@@ -378,3 +378,59 @@ func TestDiffsAPIDisabled(t *testing.T) {
 		t.Fatal("expected enabled=false without manager")
 	}
 }
+
+func TestPresetsAPI(t *testing.T) {
+	e := engine.New(config.Default(), engine.NewBus())
+	srv := NewServer(e)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/api/presets")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	var list struct {
+		Presets []config.Preset `json:"presets"`
+		Target  string          `json:"target"`
+	}
+	if err := json.Unmarshal(body, &list); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(list.Presets) == 0 {
+		t.Fatal("expected presets list")
+	}
+	if list.Target != "/var" {
+		t.Fatalf("target = %q, want /var", list.Target)
+	}
+}
+
+func TestPresetApplyAPI(t *testing.T) {
+	e := engine.New(config.Default(), engine.NewBus())
+	srv := NewServer(e)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	res, err := http.Post(ts.URL+"/api/presets/caches/apply", "application/json", nil)
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), `"applied":"caches"`) {
+		t.Fatalf("expected applied caches: %s", body)
+	}
+	if e.Target() != "/var/folders" {
+		t.Fatalf("engine target = %q, want /var/folders", e.Target())
+	}
+
+	res2, err := http.Post(ts.URL+"/api/presets/nope/apply", "application/json", nil)
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	defer res2.Body.Close()
+	if res2.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unknown preset, got %d", res2.StatusCode)
+	}
+}

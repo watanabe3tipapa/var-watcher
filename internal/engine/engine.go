@@ -143,6 +143,42 @@ func (e *Engine) SaveConfig(path string) error {
 	return e.cfg.Save(path)
 }
 
+// Presets は設定済みプリセット一覧を返す。
+func (e *Engine) Presets() []config.Preset {
+	return e.cfg.Presets
+}
+
+// ApplyPreset はプリセットの target / enabled を現在設定へ反映し、watcher を再構築する。
+// 組み込み watcher のみ対象(プラグインは引き継ぐ)。適用前に全 watcher を停止する。
+func (e *Engine) ApplyPreset(id string) (*config.Preset, error) {
+	p, err := e.cfg.ApplyPreset(id)
+	if err != nil {
+		return nil, err
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	// 停止しながら再ビルド: プラグインは残し、組み込みをcfg再構築で置き換える。
+	var builtins []*Watcher
+	for _, w := range Builtins(e.cfg, e.bus) {
+		builtins = append(builtins, w)
+	}
+	for name := range e.watchers {
+		if isBuiltin(name) {
+			e.watchers[name].Stop()
+			delete(e.watchers, name)
+		}
+	}
+	for _, w := range builtins {
+		e.watchers[w.Name] = w
+		if e.cfg.Enabled[w.Name] {
+			_ = w.Start()
+		}
+	}
+	return p, nil
+}
+
 // applyConfig は保存済み設定の enabled 状態を反映する。
 func (e *Engine) applyConfig() {
 	for _, name := range BuiltinNames() {

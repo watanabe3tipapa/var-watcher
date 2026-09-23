@@ -191,6 +191,43 @@ async function refreshAlerts() {
   }
 }
 
+interface PresetInfo {
+  id: string
+  name?: string
+  target: string
+  enabled?: Record<string, boolean>
+  filter?: string
+}
+
+const presets = ref<PresetInfo[]>([])
+const presetTarget = ref('')
+const presetId = ref('')
+
+async function refreshPresets() {
+  try {
+    const res = await fetch('/api/presets')
+    const body = await res.json()
+    presets.value = body.presets ?? []
+    presetTarget.value = body.target ?? ''
+    if (!presetId.value) presetId.value = presets.value[0]?.id ?? ''
+  } catch {
+    presets.value = []
+  }
+}
+
+async function applyPreset(id: string) {
+  const res = await fetch(`/api/presets/${encodeURIComponent(id)}/apply`, { method: 'POST' })
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    logs.value.push({ ts: new Date().toISOString(), source: 'api', level: 'error', message: body?.error ?? 'preset apply failed' })
+    return
+  }
+  const body = await res.json()
+  presetTarget.value = body.target ?? presetTarget.value
+  await refresh()
+  logs.value.push({ ts: new Date().toISOString(), source: 'api', level: 'info', message: `preset applied: ${body.applied} → ${presetTarget.value}` })
+}
+
 function toISO(v: string): string {
   if (!v) return ''
   const d = new Date(v)
@@ -281,6 +318,7 @@ onMounted(() => {
   refreshStats()
   refreshTree()
   refreshDiffs()
+  refreshPresets()
   connect()
   setInterval(refresh, 5000)
   setInterval(refreshAlerts, 5000)
@@ -322,6 +360,18 @@ onBeforeUnmount(() => ws?.close())
           </button>
         </li>
       </ul>
+    </section>
+
+    <section class="presets">
+      <h2>Presets</h2>
+      <div class="row">
+        <select v-model="presetId" class="preset-select">
+          <option v-for="p in presets" :key="p.id" :value="p.id">{{ p.name || p.id }}</option>
+        </select>
+        <button class="ex" @click="applyPreset(presetId)">適用</button>
+        <span class="count">target: <code>{{ presetTarget }}</code></span>
+      </div>
+      <p class="hint">プリセットは target と有効エンジンをまとめて切り替えます。</p>
     </section>
 
     <section class="alerts">
@@ -519,6 +569,7 @@ button:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
 .tree-folder { background: none; border: none; color: #94a3b8; padding: 0 2px; cursor: pointer; font-size: 0.7rem; }
 .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e2e8f0; }
 .tree-count { color: #94a3b8; min-width: 3rem; text-align: right; }
+.preset-select { min-width: 10rem; width: auto !important; }
 .diff-card { border: 1px solid #334155; border-radius: 6px; margin-bottom: 0.75rem; overflow: hidden; }
 .diff-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.4rem 0.6rem; background: #0b1220; font-size: 0.75rem; }
 .diff-meta { color: #94a3b8; white-space: nowrap; }

@@ -39,6 +39,7 @@ macOS の `/var` はログ・キャッシュ・一時ファイルが頻繁に書
 - **統計ダッシュボード** — 時間帯別イベント数・エンジン別比率・TOP 変更パスを Web で可視化
 - **ディレクトリツリー可視化** — 24 時間の変更をパス階層で集計し、色深度ヒートマップで表示。クリックで展開/関連行を検索
 - **差分表示** — 変更検知時にテキストファイルをスナップショットし、前後比較(追加: 緑 / 削除: 赤)を Web でハイライト表示
+- **監視対象プリセット** — 対象パスと有効エンジンをまとめたプリセット(logs / caches / temp)を同梱し、いずれかをワンタップで適用
 - **設定保存** — `~/.varwatch/config.json`
 - **macOS 通知** — `osascript` 連携
 - **プラグイン** — `plugins/*.sh` を置くだけで自動実行
@@ -58,6 +59,11 @@ macOS の `/var` はログ・キャッシュ・一時ファイルが頻繁に書
   "dedup_max": 4096,
   "db_path": "~/.varwatch/varwatch.db",
   "retention_days": 30,
+  "presets": [
+    {"id": "logs", "name": "Log files", "target": "/var/log", "enabled": {"fswatch": true, "logstream": true}},
+    {"id": "caches", "name": "Caches", "target": "/var/folders", "enabled": {"fswatch": true, "watchman": true}},
+    {"id": "temp", "name": "Temp files", "target": "/tmp", "enabled": {"fswatch": true}}
+  ],
   "alerts": [
     {
       "id": "burst",
@@ -76,6 +82,7 @@ macOS の `/var` はログ・キャッシュ・一時ファイルが頻繁に書
 - `db_path` / `retention_days`: 永続化先と保持期間(超過分は起動時に削除)
 - `alerts[]`: 発火条件。`pattern` に一致し、`window_sec` 秒以内に `min_events` 件あれば発火。
   `sound: true` でサウンド付き通知、`notify: true` で通知のみの設定も可。
+- `presets[]`: 対象パスと有効エンジンをまとめたプリセット。未設定なら `logs` / `caches` / `temp` が既定で入る。
 
 ## REST API
 
@@ -98,6 +105,10 @@ curl 'http://localhost:8080/api/tree?hours=24&limit=20000'
 
 # ファイル変更の前後差分(直近 N 件)
 curl 'http://localhost:8080/api/diffs?limit=50'
+
+# プリセット一覧と適用
+curl 'http://localhost:8080/api/presets'
+curl -X POST 'http://localhost:8080/api/presets/logs/apply'
 ```
 
 ## スクリーンショット

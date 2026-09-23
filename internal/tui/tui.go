@@ -147,6 +147,8 @@ func Run(e *engine.Engine, prereq []engine.Prerequisite, cfgPath string, st *sto
 			if err := e.Notify("var-watcher notification test"); err != nil {
 				fmt.Fprintln(logView, "[red]notify error: "+err.Error())
 			}
+		case 'p':
+			cyclePreset(e, logView, header)
 		case 'e':
 			exportLogs(logView, st)
 		}
@@ -166,6 +168,30 @@ func watcherNames(e *engine.Engine) []string {
 		out = append(out, i.Name)
 	}
 	return out
+}
+
+// cyclePreset は次のプリセットへ切り替えて watcher を再構築する。ヘッダーとログに結果表示。
+func cyclePreset(e *engine.Engine, logView *tview.TextView, header *tview.TextView) {
+	presets := e.Presets()
+	if len(presets) == 0 {
+		fmt.Fprintln(logView, "[red]no presets defined")
+		return
+	}
+	target := e.Target()
+	idx := 0
+	for i, p := range presets {
+		if p.Target == target {
+			idx = (i + 1) % len(presets)
+			break
+		}
+	}
+	p, err := e.ApplyPreset(presets[idx].ID)
+	if err != nil {
+		fmt.Fprintln(logView, "[red]preset apply error: "+err.Error())
+		return
+	}
+	fmt.Fprintf(logView, "[green]preset applied: %s → %s\n", p.ID, e.Target())
+	refreshHeader(header, e)
 }
 
 // exportLogs は永続化されたログを CSV で ~/.varwatch/export-<日時>.csv に書き出す。

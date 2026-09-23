@@ -64,6 +64,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/stats", s.handleStats)
 	mux.HandleFunc("GET /api/tree", s.handleTree)
 	mux.HandleFunc("GET /api/diffs", s.handleDiffs)
+	mux.HandleFunc("GET /api/presets", s.handlePresets)
+	mux.HandleFunc("POST /api/presets/{id}/apply", s.handleApplyPreset)
 	mux.HandleFunc("GET /api/alerts", s.handleAlerts)
 	mux.HandleFunc("GET /ws/logs", s.handleWS)
 
@@ -261,6 +263,25 @@ func (s *Server) handleAlerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "fired": s.alerts.History()})
+}
+
+// handlePresets はプリセット一覧と現在の target を返す。
+func (s *Server) handlePresets(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"presets": s.engine.Presets(),
+		"target":  s.engine.Target(),
+	})
+}
+
+// handleApplyPreset はプリセットを適用し watcher を再構築する。
+func (s *Server) handleApplyPreset(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	p, err := s.engine.ApplyPreset(id)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"applied": p.ID, "target": s.engine.Target()})
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {

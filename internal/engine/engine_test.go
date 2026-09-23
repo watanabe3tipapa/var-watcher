@@ -95,6 +95,60 @@ func TestEngineListBuiltins(t *testing.T) {
 	}
 }
 
+func TestEngineApplyPreset(t *testing.T) {
+	cfg := config.Default()
+	e := New(cfg, NewBus())
+	if len(e.Presets()) == 0 {
+		t.Fatal("expected presets from config")
+	}
+	p, err := e.ApplyPreset("caches")
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	if p.ID != "caches" {
+		t.Fatalf("preset id = %q", p.ID)
+	}
+	if e.Target() != "/var/folders" {
+		t.Fatalf("target = %q, want /var/folders", e.Target())
+	}
+	if _, err := e.ApplyPreset("does-not-exist"); err == nil {
+		t.Fatal("expected error for unknown preset")
+	}
+}
+
+func TestEngineApplyPresetRestartsWatchers(t *testing.T) {
+	cfg := config.Default()
+	bus := NewBus()
+	e := New(cfg, bus)
+	// logs プリセットは target /var/log、fswatch+logstream enabled。
+	p, err := e.ApplyPreset("logs")
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	if p.ID != "logs" {
+		t.Fatalf("preset id = %q", p.ID)
+	}
+	infos := e.List()
+	enabled := map[string]bool{}
+	for _, i := range infos {
+		enabled[i.Name] = i.Enabled
+	}
+	if !enabled["fswatch"] {
+		t.Fatal("fswatch should be running after logs preset")
+	}
+	if !enabled["logstream"] {
+		t.Fatal("logstream should be running after logs preset")
+	}
+	for _, i := range infos {
+		if i.Name == "fswatch" || i.Name == "logstream" {
+			if i.State != "running" {
+				t.Fatalf("%s state = %q, want running", i.Name, i.State)
+			}
+			_ = e.Stop(i.Name)
+		}
+	}
+}
+
 func TestRingCap(t *testing.T) {
 	r := NewRing(3)
 	for i := 0; i < 10; i++ {
