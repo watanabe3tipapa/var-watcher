@@ -12,11 +12,14 @@ import Layout from '../layouts/Layout.astro'
   <p class="text-slate-300">起動時に不足コマンドを検知し、<code>brew install …</code> のヒントを表示します。インストールしなくても TUI / Web UI 自体は起動できます。</p>
 
   <h2 class="mb-1 mt-6 text-lg font-semibold">ログはどこに保存されますか?</h2>
-  <p class="text-slate-300">ログはメモリ上に保持され、<code>max_log_lines</code>(既定 2000 行)で自動的に切り捨てられます。ファイルへの永続化は現在未対応です。</p>
+  <p class="text-slate-300">2 段階です。メモリ上には <code>max_log_lines</code>(既定 2000 行)で保持しつつ、<code>db_path</code>(既定 <code>~/.varwatch/varwatch.db</code>)の SQLite へ永続化します。保持期間は <code>retention_days</code>(既定 30 日)で、起動時に超過分が削除されます。</p>
 
   <h2 class="mb-1 mt-6 text-lg font-semibold">log stream の出力が多すぎる</h2>
   <p class="text-slate-300">システムログは高頻度です。既定では OFF にしてあり、必要なときだけ ON にするのがおすすめです。</p>
 
   <h2 class="mb-1 mt-6 text-lg font-semibold">プラグインはどうやって追加しますか?</h2>
   <p class="text-slate-300"><code>plugins/</code> ディレクトリに <code>.sh</code> スクリプトを置くだけです。起動時に自動検出され、TUI / Web UI の一覧に追加されます。</p>
+
+  <h2 class="mb-1 mt-6 text-lg font-semibold">Web UI の表示言語は?</h2>
+  <p class="text-slate-300">日本語 / English をヘッダーのボタンで即時切替できます(選択はブラウザに保存)。初期言語は設定の <code>lang</code>(既定 ja)です。</p>
 </Layout>

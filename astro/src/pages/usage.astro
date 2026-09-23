@@ -11,9 +11,11 @@ import DemoLink from '../components/DemoLink.astro'
   <table class="w-full border-collapse text-sm">
     <thead><tr class="border-b border-slate-700 text-left"><th class="py-2">キー</th><th class="py-2">動作</th></tr></thead>
     <tbody class="text-slate-300">
-      <tr class="border-b border-slate-800"><td class="py-2"><code>Space</code></td><td>選択中の watcher を ON/OFF</td></tr>
+      <tr class="border-b border-slate-800"><td class="py-2"><code>Space</code> / <code>Enter</code></td><td>選択中の watcher を ON/OFF</td></tr>
       <tr class="border-b border-slate-800"><td class="py-2"><code>/</code></td><td>ログのキーワードフィルタ</td></tr>
-      <tr class="border-b border-slate-800"><td class="py-2"><code>f</code></td><td>フィルタ解除</td></tr>
+      <tr class="border-b border-slate-800"><td class="py-2"><code>f</code> / <code>Esc</code></td><td>フィルタ解除</td></tr>
+      <tr class="border-b border-slate-800"><td class="py-2"><code>p</code></td><td>プリセットを切替 (logs → caches → temp)</td></tr>
+      <tr class="border-b border-slate-800"><td class="py-2"><code>e</code></td><td>全ログを CSV エクスポート</td></tr>
       <tr class="border-b border-slate-800"><td class="py-2"><code>s</code></td><td>設定を保存</td></tr>
       <tr class="border-b border-slate-800"><td class="py-2"><code>n</code></td><td>通知テスト</td></tr>
       <tr class="border-b border-slate-800"><td class="py-2"><code>q</code> / <code>Ctrl-C</code></td><td>終了</td></tr>
@@ -21,7 +23,28 @@ import DemoLink from '../components/DemoLink.astro'
   </table>
 
   <h2 class="mb-2 mt-8 text-xl font-semibold">Web UI</h2>
-  <p class="mb-2 text-slate-300"><code>varwatch --web</code> で <code>http://localhost:8080</code> を開きます。各 watcher の Start / Stop ボタンと、WebSocket によるリアルタイムログを確認できます。</p>
+  <p class="mb-2 text-slate-300"><code>varwatch --web</code> で <code>http://localhost:8080</code> を開きます。以下のパネルを備えています。</p>
+  <ul class="list-disc space-y-1 pl-5 text-sm text-slate-300">
+    <li><b>Watchers</b> — 各エンジンの Start / Stop(状態は TUI と共有)</li>
+    <li><b>Presets</b> — logs / caches / temp をワンタップで適用(<code>POST /api/presets/:id/apply</code>)</li>
+    <li><b>Alerts</b> — 発火履歴と件数バッジ</li>
+    <li><b>Performance</b> — イベント/s・ヒープ・CPU のミニグラフ、512 MiB 超で警告</li>
+    <li><b>Dashboard / Tree / Diffs</b> — 24h 集計、パス階層ヒートマップ、テキスト差分(緑: 追加 / 赤: 削除)</li>
+    <li><b>Search</b> — SQLite への時系列・キーワード検索と CSV / JSON エクスポート</li>
+    <li><b>Logs</b> — WebSocket によるリアルタイムログ</li>
+  </ul>
+  <p class="mb-2 mt-4 text-sm text-slate-400">表記言語はヘッダーのボタンで 日本語 / English を即時切替できます(選択は localStorage に保存)。</p>
+
+  <h2 class="mb-2 mt-8 text-xl font-semibold">REST API</h2>
+  <pre class="overflow-x-auto rounded bg-slate-900 p-4 text-sm"><code>$ curl 'http://localhost:8080/api/logs?since=2026-09-23T00:00:00%2B09:00&q=Created&limit=50'   # 検索
+$ curl 'http://localhost:8080/api/alerts'                                                      # アラート履歴
+$ curl -o logs.csv 'http://localhost:8080/api/export?format=csv&source=fswatch'                # エクスポート
+$ curl 'http://localhost:8080/api/stats?hours=24'                                              # 統計
+$ curl 'http://localhost:8080/api/tree?hours=24'                                               # ツリー
+$ curl 'http://localhost:8080/api/diffs?limit=50'                                              # 差分
+$ curl 'http://localhost:8080/api/presets' && curl -X POST 'http://localhost:8080/api/presets/logs/apply'
+$ curl 'http://localhost:8080/api/perf'                                                        # パフォーマンス
+$ curl 'http://localhost:8080/api/config'                                                      # 言語などの設定</code></pre>
 
   <h2 class="mb-2 mt-8 text-xl font-semibold">Live Demo</h2>
   <p class="mb-2 text-slate-300">Netlify 上で公開しているモックデモを試せます。</p>

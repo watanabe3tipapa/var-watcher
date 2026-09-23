@@ -25,15 +25,31 @@ import DemoLink from '../components/DemoLink.astro'
     </div>
     <div class="rounded-lg border border-slate-800 p-5">
       <h2 class="mb-2 text-xl font-semibold">TUI と Web UI を切り替え</h2>
-      <p class="text-sm text-slate-300"><code>--tui</code> と <code>--web</code> フラグで端末 UI とブラウザ UI を選択。同時起動も可能で、状態とログは常に同期します。</p>
+      <p class="text-sm text-slate-300"><code>--tui</code> と <code>--web</code> フラグで端末 UI とブラウザ UI を選択。同時起動も可能で、状態とログは常に同期します。Web UI は単一バイナリに同梱(<code>make build</code>)。</p>
     </div>
     <div class="rounded-lg border border-slate-800 p-5">
-      <h2 class="mb-2 text-xl font-semibold">リアルタイムログ</h2>
-      <p class="text-sm text-slate-300">TUI ではスクロール可能なログビュー + キーワードフィルタ、Web UI では WebSocket でログを即時配信。</p>
+      <h2 class="mb-2 text-xl font-semibold">リアルタイムログ & 重複排除</h2>
+      <p class="text-sm text-slate-300">TUI ではスクロール可能なログビュー + キーワードフィルタ、Web UI では WebSocket で即時配信。同一イベントは <code>dedup_ms</code> の窓内で 1 行に集約。</p>
     </div>
     <div class="rounded-lg border border-slate-800 p-5">
-      <h2 class="mb-2 text-xl font-semibold">設定保存 & プラグイン</h2>
-      <p class="text-sm text-slate-300"><code>~/.varwatch/config.json</code> で有効状態を管理。<code>plugins/*.sh</code> を置くだけで独自の監視スクリプトを追加できます。</p>
+      <h2 class="mb-2 text-xl font-semibold">SQLite 永続化 & 時系列検索</h2>
+      <p class="text-sm text-slate-300">ログを pure Go の SQLite に保存(pure Go / CGO 不要)。キーワード・日時範囲・source で検索し、CSV / JSON でエクスポートできます。</p>
+    </div>
+    <div class="rounded-lg border border-slate-800 p-5">
+      <h2 class="mb-2 text-xl font-semibold">ルールベース アラート & macOS 通知</h2>
+      <p class="text-sm text-slate-300">「パターン + 時間窓内 N 件」でアラート発火。macOS 通知(サウンド可)と Web バッジで知らせます。</p>
+    </div>
+    <div class="rounded-lg border border-slate-800 p-5">
+      <h2 class="mb-2 text-xl font-semibold">統計 / ツリー / 差分の可視化</h2>
+      <p class="text-sm text-slate-300">24h 集計ダッシュボード・ディレクトリ ヒートマップ・テキスト差分(追加: 緑 / 削除: 赤)を Web で確認。</p>
+    </div>
+    <div class="rounded-lg border border-slate-800 p-5">
+      <h2 class="mb-2 text-xl font-semibold">プリセット & パフォーマンス監視</h2>
+      <p class="text-sm text-slate-300"><code>logs</code> / <code>caches</code> / <code>temp</code> のプリセットをワンタップで適用。イベントレート・ヒープ・CPU をミニグラフで監視。</p>
+    </div>
+    <div class="rounded-lg border border-slate-800 p-5">
+      <h2 class="mb-2 text-xl font-semibold">設定保存 & プラグイン & i18n</h2>
+      <p class="text-sm text-slate-300"><code>~/.varwatch/config.json</code> で状態管理。<code>plugins/*.sh</code> を置くだけで独自監視を追加。Web UI は 日本語 / English をボタンで切替。</p>
     </div>
   </section>
 
@@ -42,12 +58,14 @@ import DemoLink from '../components/DemoLink.astro'
     <pre class="overflow-x-auto rounded bg-slate-900 p-4 text-sm"><code>$ brew install fswatch watchman entr
 $ go install github.com/watanabe3tipapa/var-watcher/cmd/varwatch@latest
 $ sudo varwatch --tui</code></pre>
+    <p class="mt-2 text-sm text-slate-400">Web UI も単一バイナリに同梱されます。最新の UI を同梱したい場合は <code>git clone</code> して <code>make build</code> してください。</p>
   </section>
 
   <section id="usage" class="mt-10">
     <h2 class="mb-3 text-2xl font-semibold">クイックスタート</h2>
     <pre class="overflow-x-auto rounded bg-slate-900 p-4 text-sm"><code>$ varwatch --tui        # 端末 UI で監視
 $ varwatch --web         # ブラウザ UI を :8080 で起動
-$ varwatch --tui --web   # 両方同時</code></pre>
+$ varwatch --tui --web   # 両方同時
+$ varwatch --version     # バージョン表示</code></pre>
   </section>
 </Layout>
