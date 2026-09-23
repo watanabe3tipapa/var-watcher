@@ -15,6 +15,7 @@ import (
 	"github.com/watanabe3tipapa/var-watcher/internal/config"
 	"github.com/watanabe3tipapa/var-watcher/internal/diff"
 	"github.com/watanabe3tipapa/var-watcher/internal/engine"
+	"github.com/watanabe3tipapa/var-watcher/internal/perf"
 	"github.com/watanabe3tipapa/var-watcher/internal/store"
 )
 
@@ -403,6 +404,55 @@ func TestPresetsAPI(t *testing.T) {
 	}
 	if list.Target != "/var" {
 		t.Fatalf("target = %q, want /var", list.Target)
+	}
+}
+
+func TestPerfAPI(t *testing.T) {
+	e := engine.New(config.Default(), engine.NewBus())
+	pm := perf.New(10)
+	pm.Count()
+	go pm.Run(30 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+
+	srv := NewServer(e)
+	srv.SetPerf(pm)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/api/perf")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	var payload struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !payload.Enabled {
+		t.Fatal("expected enabled=true with perf monitor")
+	}
+	if !strings.Contains(string(body), `"samples"`) {
+		t.Fatalf("expected samples field: %s", body)
+	}
+}
+
+func TestPerfAPIDisabled(t *testing.T) {
+	e := engine.New(config.Default(), engine.NewBus())
+	srv := NewServer(e)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/api/perf")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	if strings.Contains(string(body), `"enabled":true`) {
+		t.Fatalf("expected enabled=false without monitor, got: %s", body)
 	}
 }
 

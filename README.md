@@ -40,6 +40,7 @@ macOS の `/var` はログ・キャッシュ・一時ファイルが頻繁に書
 - **ディレクトリツリー可視化** — 24 時間の変更をパス階層で集計し、色深度ヒートマップで表示。クリックで展開/関連行を検索
 - **差分表示** — 変更検知時にテキストファイルをスナップショットし、前後比較(追加: 緑 / 削除: 赤)を Web でハイライト表示
 - **監視対象プリセット** — 対象パスと有効エンジンをまとめたプリセット(logs / caches / temp)を同梱し、いずれかをワンタップで適用
+- **パフォーマンスモニタリング** — イベント処理レート・ヒープ使用量・CPU を Web でミニグラフ表示。メモリ閾値(512 MiB)超過で警告
 - **設定保存** — `~/.varwatch/config.json`
 - **macOS 通知** — `osascript` 連携
 - **プラグイン** — `plugins/*.sh` を置くだけで自動実行
@@ -109,6 +110,9 @@ curl 'http://localhost:8080/api/diffs?limit=50'
 # プリセット一覧と適用
 curl 'http://localhost:8080/api/presets'
 curl -X POST 'http://localhost:8080/api/presets/logs/apply'
+
+# パフォーマンスサンプル(メモリ / CPU / イベント/s)
+curl 'http://localhost:8080/api/perf'
 ```
 
 ## スクリーンショット

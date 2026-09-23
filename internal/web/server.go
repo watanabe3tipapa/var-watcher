@@ -12,6 +12,7 @@ import (
 	"github.com/watanabe3tipapa/var-watcher/internal/alert"
 	"github.com/watanabe3tipapa/var-watcher/internal/diff"
 	"github.com/watanabe3tipapa/var-watcher/internal/engine"
+	"github.com/watanabe3tipapa/var-watcher/internal/perf"
 	"github.com/watanabe3tipapa/var-watcher/internal/store"
 )
 
@@ -26,6 +27,7 @@ type Server struct {
 	store  *store.Store
 	alerts *alert.Manager
 	diffs  *diff.Manager
+	perf   *perf.Monitor
 	static fs.FS
 }
 
@@ -48,6 +50,11 @@ func (s *Server) SetDiffs(dm *diff.Manager) {
 	s.diffs = dm
 }
 
+// SetPerf はパフォーマンスモニタを登録する。/api/perf のフィードに使う。
+func (s *Server) SetPerf(pm *perf.Monitor) {
+	s.perf = pm
+}
+
 func (s *Server) Run(addr string) error {
 	srv := &http.Server{Addr: addr, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	return srv.ListenAndServe()
@@ -66,6 +73,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/diffs", s.handleDiffs)
 	mux.HandleFunc("GET /api/presets", s.handlePresets)
 	mux.HandleFunc("POST /api/presets/{id}/apply", s.handleApplyPreset)
+	mux.HandleFunc("GET /api/perf", s.handlePerf)
 	mux.HandleFunc("GET /api/alerts", s.handleAlerts)
 	mux.HandleFunc("GET /ws/logs", s.handleWS)
 
@@ -282,6 +290,15 @@ func (s *Server) handleApplyPreset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"applied": p.ID, "target": s.engine.Target()})
+}
+
+// handlePerf はパフォーマンスサンプルと警告を返す。
+func (s *Server) handlePerf(w http.ResponseWriter, r *http.Request) {
+	if s.perf == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": false})
+		return
+	}
+	writeJSON(w, http.StatusOK, s.perf.Snapshot())
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {

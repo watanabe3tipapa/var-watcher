@@ -228,6 +228,45 @@ async function applyPreset(id: string) {
   logs.value.push({ ts: new Date().toISOString(), source: 'api', level: 'info', message: `preset applied: ${body.applied} → ${presetTarget.value}` })
 }
 
+interface PerfSample {
+  ts: string
+  events_sec: number
+  alloc_mb: number
+  sys_mb: number
+  goroutines: number
+  cpu_sec: number
+}
+
+interface PerfPayload {
+  enabled: boolean
+  warned: boolean
+  mem_warn_mb: number
+  samples: PerfSample[]
+}
+
+const perfEnabled = ref(false)
+const perf = ref<PerfPayload | null>(null)
+
+async function refreshPerf() {
+  try {
+    const res = await fetch('/api/perf')
+    const body = await res.json()
+    perfEnabled.value = body.enabled ?? false
+    perf.value = body
+  } catch {
+    perfEnabled.value = false
+  }
+}
+
+function perfMax(field: keyof PerfSample): number {
+  return perf.value?.samples.reduce((m, s) => Math.max(m, Number(s[field]) || 0), 0) ?? 0
+}
+
+function perfWidth(v: number, max: number): string {
+  if (!max) return '0%'
+  return `${Math.max(2, Math.round((v / max) * 100))}%`
+}
+
 function toISO(v: string): string {
   if (!v) return ''
   const d = new Date(v)
@@ -319,12 +358,14 @@ onMounted(() => {
   refreshTree()
   refreshDiffs()
   refreshPresets()
+  refreshPerf()
   connect()
   setInterval(refresh, 5000)
   setInterval(refreshAlerts, 5000)
   setInterval(refreshStats, 30000)
   setInterval(refreshTree, 30000)
   setInterval(refreshDiffs, 5000)
+  setInterval(refreshPerf, 2000)
 })
 
 onBeforeUnmount(() => ws?.close())
@@ -372,6 +413,39 @@ onBeforeUnmount(() => ws?.close())
         <span class="count">target: <code>{{ presetTarget }}</code></span>
       </div>
       <p class="hint">プリセットは target と有効エンジンをまとめて切り替えます。</p>
+    </section>
+
+    <section class="dashboard">
+      <h2>Performance</h2>
+      <p v-if="!perfEnabled" class="err">パフォーマンス監視が無効</p>
+      <template v-else-if="perf">
+        <div v-if="perf.warned" class="perf-warn">⚠ メモリ使用量が高水準です ({{ perf.mem_warn_mb }} MiB 以上)</div>
+        <div class="stat-total">
+          イベント/s: <strong>{{ perfMax('events_sec') > 0 ? perf.samples[perf.samples.length - 1]?.events_sec ?? 0 : 0 }}</strong>
+          <span class="hint">(直近 {{ perf.samples.length }}s)</span>
+        </div>
+        <h3 class="stat-h">イベント処理レート (events/sec)</h3>
+        <div class="bars">
+          <div v-for="(s, i) in perf.samples.slice(-20)" :key="i" class="bar-row">
+            <span class="bar-label">{{ new Date(s.ts).toLocaleTimeString([], { minute: '2-digit', second: '2-digit' }) }}</span>
+            <div class="bar-track">
+              <div class="bar-fill" :style="{ width: perfWidth(s.events_sec, perfMax('events_sec')) }" :title="`${s.events_sec} events/s`"></div>
+            </div>
+            <span class="bar-count">{{ s.events_sec }}</span>
+          </div>
+        </div>
+        <h3 class="stat-h">ヒープ使用量 (MiB)</h3>
+        <div class="bars">
+          <div v-for="(s, i) in perf.samples.slice(-20)" :key="i" class="bar-row">
+            <span class="bar-label">{{ new Date(s.ts).toLocaleTimeString([], { minute: '2-digit', second: '2-digit' }) }}</span>
+            <div class="bar-track">
+              <div class="bar-fill mem" :style="{ width: perfWidth(s.alloc_mb, perfMax('alloc_mb')) }" :title="`${s.alloc_mb} MiB`"></div>
+            </div>
+            <span class="bar-count">{{ s.alloc_mb }}</span>
+          </div>
+        </div>
+        <p class="hint">goroutines: {{ perf.samples[perf.samples.length - 1]?.goroutines ?? 0 }} / cpu: {{ (perf.samples[perf.samples.length - 1]?.cpu_sec ?? 0).toFixed(2) }}s</p>
+      </template>
     </section>
 
     <section class="alerts">
@@ -562,6 +636,8 @@ button:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
 .bar-track { flex: 1; background: #1e293b; border-radius: 4px; height: 0.8rem; overflow: hidden; }
 .bar-fill { height: 100%; background: #38bdf8; border-radius: 4px 0 0 4px; }
 .bar-fill.src { background: #a78bfa; }
+.bar-fill.mem { background: #fbbf24; }
+.perf-warn { background: rgba(248, 113, 113, 0.15); color: #fecaca; border: 1px solid #f87171; border-radius: 6px; padding: 0.4rem 0.6rem; margin-bottom: 0.5rem; font-size: 0.8rem; }
 .bar-count { min-width: 2.5rem; color: #e2e8f0; }
 .hint { color: #94a3b8; font-size: 0.75rem; }
 .tree { display: flex; flex-direction: column; gap: 2px; font-size: 0.72rem; }

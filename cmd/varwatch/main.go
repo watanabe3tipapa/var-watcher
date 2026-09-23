@@ -12,6 +12,7 @@ import (
 	"github.com/watanabe3tipapa/var-watcher/internal/diff"
 	"github.com/watanabe3tipapa/var-watcher/internal/engine"
 	"github.com/watanabe3tipapa/var-watcher/internal/notify"
+	"github.com/watanabe3tipapa/var-watcher/internal/perf"
 	"github.com/watanabe3tipapa/var-watcher/internal/plugin"
 	"github.com/watanabe3tipapa/var-watcher/internal/store"
 	"github.com/watanabe3tipapa/var-watcher/internal/tui"
@@ -80,6 +81,10 @@ func main() {
 	dm := diff.New(50)
 	go diffWatch(bus, dm)
 
+	pm := perf.New(perf.DefaultMaxSamples)
+	go pm.Run(time.Second)
+	go perfCount(bus, pm)
+
 	prereq := engine.CheckPrerequisites(e.Watchers())
 
 	if *webMode {
@@ -87,6 +92,7 @@ func main() {
 		srv.SetStore(st)
 		srv.SetAlerts(am)
 		srv.SetDiffs(dm)
+		srv.SetPerf(pm)
 		srv.UseEmbedded()
 		go func() {
 			fmt.Printf("web UI: http://localhost%s\n", *addr)
@@ -102,6 +108,15 @@ func main() {
 		}
 	} else {
 		select {}
+	}
+}
+
+// perfCount は bus の全ログ行をパフォーマンス監視に数える。
+func perfCount(bus *engine.Bus, pm *perf.Monitor) {
+	ch, unsub := bus.Subscribe()
+	defer unsub()
+	for range ch {
+		pm.Count()
 	}
 }
 

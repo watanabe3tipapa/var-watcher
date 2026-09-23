@@ -203,6 +203,15 @@ GET  /                                → embed.FS の Vue dist/
 - TUI: `p` キーで次のプリセットへ循環切替。Web: Presets パネル(セレクト + 適用ボタン)。
 - API: `GET /api/presets`(一覧+現在 target)、`POST /api/presets/{id}/apply`(適用)。
 
+## パフォーマンスモニタリング(perf)
+- `internal/perf`: `Monitor.Run(interval)` が 1 秒毎にサンプルを採取(リング最大 60 件)。
+  - `runtime.ReadMemStats` の Alloc/Sys(MiB)、`runtime.NumGoroutine`、
+  - `syscall.Getrusage(RUSAGE_SELF)` の Utime+Stime(CPU 秒、darwin/linux は rusage_darwin.go / rusage_other.go で分離)。
+  - bus 購読側(`main.perfCount`)が全行で `pm.Count()` し、毎秒のイベント処理数を計測。
+  - 警告: Alloc ≥ 512 MiB で `warned` フラグ(一度発火で維持)。
+- `GET /api/perf`: `{enabled, warned, mem_warn_mb, samples[]}`。未登録時は `{"enabled":false}`。
+- Web UI の Performance パネル: 直近 20 件のミニバーチャート(イベント/s・ヒープ MiB)+ goroutines / CPU 秒。警告時は赤枠表示。2 秒間隔で取得。
+
 ## 通知(notify)
 - `osascript -e 'display notification "msg" with title "var-watcher"'` を非同期実行。
 - config `notify: true` のとき各エンジンの変更検知時に発火。
