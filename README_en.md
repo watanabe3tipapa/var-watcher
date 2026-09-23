@@ -25,11 +25,19 @@ var-watcher was created to visualize filesystem footprints under macOS `/var` in
 
 - Unified control of multiple monitoring engines (fswatch / watchman / entr / log stream)
 - Real-time logs streamed to both TUI and Web UI (via WebSocket)
-- Log filtering in the TUI (keyword search)
+- Log filtering in the TUI (keyword search with `/`)
 - Event deduplication: identical events collapse into one line within a `dedup_ms` window (LRU)
 - Persistent log storage + search: SQLite (pure Go, no CGO), searchable via `/api/logs` (time range / keyword / source)
 - Rule-based alerts: fire when a pattern matches N times within a window; macOS notification (optional sound) + Web badge
-- Persistent configuration (stored at `~/.varwatch/config.json`)
+- Log export: download matching logs as CSV / JSON (`/api/export`; TUI `e` key writes CSV)
+- Stats dashboard: hourly / weekly / by-source aggregations and TOP changed paths (`/api/stats`)
+- Directory tree heatmap: 24h changes aggregated by path depth with click-to-expand search (`/api/tree`)
+- File diff view: snapshots of changed text files with line-level add/del highlighting (`/api/diffs`)
+- Watch-target presets: `logs` / `caches` / `temp` switch target + enabled engines in one step (TUI `p` key / web)
+- Performance monitoring: event rate, heap, and CPU as mini-charts with a memory warning at 512 MiB (`/api/perf`)
+- i18n: Japanese / English — switch the Web UI instantly from the header (choice saved in localStorage; API error messages follow `config.lang`)
+- Persistent configuration (stored at `~/.varwatch/config.json`, save with TUI `s` key)
+- Versioning: `varwatch --version` (embedded via `git describe`, e.g. v0.2.1)
 - macOS notifications via `osascript`
 - Plugin support: drop scripts into `plugins/` and they run automatically
 - Dependency detection with hints to install missing tools
@@ -76,8 +84,81 @@ Examples from the project README and Makefile:
   varwatch --web                  # Web UI at http://localhost:8080
   varwatch --tui --web            # Both simultaneously
   varwatch --config /path.json    # Use a custom config file
+  varwatch --version              # Print version (e.g. v0.2.1)
 
 Note: `/var` often requires elevated privileges on macOS. The original README notes running the TUI with `sudo` when monitoring `/var`. Running `--web` alone does not require root privileges.
+
+### TUI shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Space` / `Enter` | Toggle the selected watcher ON/OFF |
+| `/` | Enter log keyword filter |
+| `f` / `Esc` | Clear the filter |
+| `p` | Switch to the next preset |
+| `e` | Export all logs to CSV (`~/.varwatch/export-<timestamp>.csv`) |
+| `s` | Save the config to `--config` path (default `~/.varwatch/config.json`) |
+| `n` | Test macOS notification |
+| `q` / `Ctrl+C` | Quit |
+
+## Configuration (`~/.varwatch/config.json`)
+
+```json
+{
+  "lang": "ja",
+  "target": "/var",
+  "enabled": {"fswatch": true, "logstream": false},
+  "args": {"fswatch": ["-xr"]},
+  "notify": false,
+  "max_log_lines": 2000,
+  "dedup_ms": 500,
+  "dedup_max": 4096,
+  "db_path": "~/.varwatch/varwatch.db",
+  "retention_days": 30,
+  "presets": [
+    {"id": "logs", "name": "Log files", "target": "/var/log", "enabled": {"fswatch": true, "logstream": true}},
+    {"id": "caches", "name": "Caches", "target": "/var/folders", "enabled": {"fswatch": true, "watchman": true}},
+    {"id": "temp", "name": "Temp files", "target": "/tmp", "enabled": {"fswatch": true}}
+  ],
+  "alerts": [
+    {"id": "burst", "name": "Temp file burst", "pattern": "Created", "source": "fswatch", "min_events": 100, "window_sec": 60, "sound": true}
+  ]
+}
+```
+
+- `target` / `enabled` / `args`: monitored path, per-engine ON/OFF, per-engine arguments
+- `lang`: UI language (`ja` / `en`, default `ja`); drives the Web UI's initial language and API error messages
+- `notify`: enable/disable macOS notifications (`osascript`)
+- `max_log_lines`: in-memory log buffer limit (default 2000)
+- `dedup_ms` / `dedup_max`: deduplication window (ms, `0` disables) and LRU capacity
+- `db_path` / `retention_days`: SQLite path and retention (expired rows pruned on startup)
+- `alerts[]`: fire when `pattern` (case-sensitive) / `source` / `level` matches a line and `min_events` occur within `window_sec`. `sound: true` adds sound (notification itself is gated by the top-level `notify`, default off). fswatch event names are `Created` / `Updated` / `Removed` / `Renamed`.
+- `presets[]`: presets bundling target + enabled engines; defaults to `logs` / `caches` / `temp` when unset.
+
+## REST API
+
+```bash
+# Time-series / keyword search (since/until RFC3339, q substring)
+curl 'http://localhost:8080/api/logs?since=2026-09-23T00:00:00+09:00&q=burst&limit=50'
+
+# Alert history
+curl 'http://localhost:8080/api/alerts'
+
+# Export logs (CSV/JSON)
+curl -o logs.csv 'http://localhost:8080/api/export?format=csv&source=fswatch&q=Created'
+curl -o logs.json 'http://localhost:8080/api/export?format=json'
+
+# Stats dashboard / directory tree / file diffs
+curl 'http://localhost:8080/api/stats?hours=24'
+curl 'http://localhost:8080/api/tree?hours=24&limit=20000'
+curl 'http://localhost:8080/api/diffs?limit=50'
+
+# Presets list & apply / performance samples / language
+curl 'http://localhost:8080/api/presets'
+curl -X POST 'http://localhost:8080/api/presets/logs/apply'
+curl 'http://localhost:8080/api/perf'
+curl 'http://localhost:8080/api/config'
+```
 
 ## Documentation and additional references
 

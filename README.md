@@ -41,7 +41,7 @@ macOS の `/var` はログ・キャッシュ・一時ファイルが頻繁に書
 - **差分表示** — 変更検知時にテキストファイルをスナップショットし、前後比較(追加: 緑 / 削除: 赤)を Web でハイライト表示
 - **監視対象プリセット** — 対象パスと有効エンジンをまとめたプリセット(logs / caches / temp)を同梱し、いずれかをワンタップで適用
 - **パフォーマンスモニタリング** — イベント処理レート・ヒープ使用量・CPU を Web でミニグラフ表示。メモリ閾値(512 MiB)超過で警告
-- **多言語対応(日本語 / English)** — Web UI をヘッダーのボタンで即時切替(localStorage 保存、設定の `lang` と同期)。API のエラーメッセージも `config.lang` に応じて切り替え
+- **多言語対応(日本語 / English)** — Web UI をヘッダーのボタンで即時切替(選択は localStorage に保存)。初期言語は設定の `lang`、未保存ならブラウザ言語で決定。API のエラーメッセージも `config.lang` に応じて切り替え
 - **設定保存** — `~/.varwatch/config.json`
 - **macOS 通知** — `osascript` 連携
 - **プラグイン** — `plugins/*.sh` を置くだけで自動実行
@@ -71,7 +71,7 @@ macOS の `/var` はログ・キャッシュ・一時ファイルが頻繁に書
     {
       "id": "burst",
       "name": "一時ファイル急増アラート",
-      "pattern": "created",
+      "pattern": "Created",
       "source": "fswatch",
       "min_events": 100,
       "window_sec": 60,
@@ -81,11 +81,14 @@ macOS の `/var` はログ・キャッシュ・一時ファイルが頻繁に書
 }
 ```
 
-- `lang`: 表示言語(`ja` / `en`。既定 `ja`)。Web UI のデフォルトと API のエラーメッセージに反映
+- `target` / `enabled` / `args`: 監視対象パス、エンジン別の ON/OFF、エンジン別のコマンド引数
+- `lang`: 表示言語(`ja` / `en`。既定 `ja`)。Web UI の初期言語と API のエラーメッセージに反映
+- `notify`: macOS 通知の有効/無効(`osascript`)
+- `max_log_lines`: メモリ保持するログの上限行数(既定 2000)
 - `dedup_ms` / `dedup_max`: 重複排除ウィンドウ(ミリ秒、`0` で無効)と LRU の最大エントリ数
 - `db_path` / `retention_days`: 永続化先と保持期間(超過分は起動時に削除)
-- `alerts[]`: 発火条件。`pattern` に一致し、`window_sec` 秒以内に `min_events` 件あれば発火。
-  `sound: true` でサウンド付き通知、`notify: true` で通知のみの設定も可。
+- `alerts[]`: 発火条件。`pattern`(大文字小文字を区別)と `source` / `level` が行に一致し、`window_sec` 秒以内に `min_events` 件あれば発火。
+  `sound: true` でサウンド付き通知になります(通知自体は config 全体の `notify` / 既定は off)。fswatch のイベント名は `Created` / `Updated` / `Removed` / `Renamed` 等。
 - `presets[]`: 対象パスと有効エンジンをまとめたプリセット。未設定なら `logs` / `caches` / `temp` が既定で入る。
 
 ## REST API
@@ -98,7 +101,7 @@ curl 'http://localhost:8080/api/logs?since=2026-09-23T00:00:00+09:00&q=burst&lim
 curl 'http://localhost:8080/api/alerts'
 
 # ログをエクスポート(CSV/JSON、検索条件を適用してダウンロード)
-curl -o logs.csv 'http://localhost:8080/api/export?format=csv&source=fswatch&q=created'
+curl -o logs.csv 'http://localhost:8080/api/export?format=csv&source=fswatch&q=Created'
 curl -o logs.json 'http://localhost:8080/api/export?format=json&since=2026-09-23T00:00:00%2B09:00'
 
 # 統計ダッシュボード用の集計(時間帯別 / 曜日別 / エンジン別 / TOPパス)
@@ -147,10 +150,24 @@ varwatch --tui                  # 端末 UI
 varwatch --web                  # Web UI(http://localhost:8080)
 varwatch --tui --web            # 両方同時
 varwatch --config /path.json    # 設定ファイルを指定
+varwatch --version              # バージョン表示(v0.2.1 等)
 ```
 
 > `/var` の大半は root 権限が必要なため、TUI は `sudo` で実行してください。
 > `--web` のみの場合は root 不要で起動できます。
+
+### TUI ショートカット
+
+| キー | 動作 |
+|------|------|
+| `Space` / `Enter` | 選択中の watcher を ON/OFF |
+| `/` | ログのキーワードフィルタ入力 |
+| `f` / `Esc` | フィルタ解除 |
+| `p` | 次のプリセットへ切り替え |
+| `e` | 全ログを CSV エクスポート(`~/.varwatch/export-<日時>.csv`) |
+| `s` | 設定を保存(`--config` のパス、既定 `~/.varwatch/config.json`) |
+| `n` | 通知の動作テスト |
+| `q` / `Ctrl+C` | 終了 |
 
 詳細な使い方(TUI キーバインド・REST API・設定リファレンス・プラグイン)は
 [ドキュメント](https://watanabe3tipapa.github.io/var-watcher/)または
@@ -170,7 +187,7 @@ varwatch --config /path.json    # 設定ファイルを指定
 
 ## ライセンス
 
-MITライセンス — 詳細は[LICENSE](LICENSE)ファイルを参照してください。
+MIT ライセンス — 詳細は[LICENSE](LICENSE)ファイルを参照してください。
 
 ## 連絡先
 

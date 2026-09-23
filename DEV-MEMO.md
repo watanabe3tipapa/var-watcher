@@ -103,9 +103,10 @@ func (e *Engine) Notify(msg string)        // 通知
 - 依存コマンドが無い場合は `detect.go` が brew インストールコマンドを提示。
 
 ## TUI(tview)
-- `tview.NewList` で 4 エンジン + プラグインを列挙。`Space` で ON/OFF トグル、`Enter` で詳細。
+- `tview.NewList` で 4 エンジン + プラグインを列挙。`Space` / `Enter` で ON/OFF トグル。
 - `tview.NewTextView` ログビュー(自動スクロール・`DynamicColors(true)`)。
-- `/` でフィルタ入力(バッファ内行を絞り込み)。`f` でフィルタ解除。
+- `/` でフィルタ入力(バッファ内行を絞り込み)。`f` / `Esc` でフィルタ解除。
+- その他のキー: `p` プリセット切替 / `e` CSV エクスポート / `s` 設定保存 / `n` 通知テスト / `q` 終了。
 - フッターにキーヒント。ログは `maxLogLines`(既定 2000)で切り捨て。
 - イベント駆動: goroutine で bus を購読 → `app.QueueUpdateDraw`。
 
@@ -134,11 +135,11 @@ GET  /                                → embed.FS の Vue dist/
   "db_path": "~/.varwatch/varwatch.db",
   "retention_days": 30,
   "alerts": [
-    {
+{
       "id": "burst",
       "name": "一時ファイル急増アラート",
-      "pattern": "created",
-      "source": "entr",
+      "pattern": "Created",
+      "source": "fswatch",
       "min_events": 100,
       "window_sec": 60,
       "sound": true
@@ -226,7 +227,8 @@ GET  /                                → embed.FS の Vue dist/
 
 ## 通知(notify)
 - `osascript -e 'display notification "msg" with title "var-watcher"'` を非同期実行。
-- config `notify: true` のとき各エンジンの変更検知時に発火。
+- 通知はアラート発火時のみ: `sound: true` なら `notify.Sound`、それ以外で config 全体の `notify: true` なら `notify.Show`(main.go の `OnFire`)。
+- `Engine.Notify` は TUI の `n` キーでのテスト用(変更検知では通知しない)。
 
 ## プラグイン(plugin)
 - `plugins/*.sh` を起動時スキャン。ファイル名 = プラグイン名。
